@@ -7,6 +7,11 @@
 
 :root {
   color-scheme: dark;
+  /* How much vertical space the floating mobile nav reserves at the bottom of
+     the viewport: its own height plus the gap it floats above the edge. The
+     mobile sheet sits on top of this, and the camera offsets Earth above it,
+     so it lives here rather than as a magic number in three places. */
+  --mobile-nav-footprint: 66px;
   --bg: #000000;
   --ui-bg: #0a0a0a;
   --border: #555;

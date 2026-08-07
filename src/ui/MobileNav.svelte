@@ -92,16 +92,29 @@
 <style>
   .mobile-nav {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 56px;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* Floats clear of the screen edge rather than sitting on it, so the globe
+       stays visible behind the blur. --mobile-nav-footprint accounts for both
+       this offset and the bar's height. */
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    right: 12px;
+    height: 54px;
     z-index: 501;
-    background: var(--ui-bg);
-    border-top: 1px solid var(--border);
     display: flex;
     align-items: stretch;
+    padding: 5px;
+    gap: 2px;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    background: color-mix(in srgb, var(--ui-bg) 72%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    backdrop-filter: blur(16px) saturate(1.5);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  }
+  /* Blur is expensive and, on a browser without it, a 72%-opaque bar over a
+     moving globe is unreadable. Fall back to the opaque panel colour. */
+  @supports not (backdrop-filter: blur(4px)) {
+    .mobile-nav { background: var(--ui-bg); }
   }
   .nav-tab {
     flex: 1;
@@ -109,19 +122,27 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 3px;
     background: none;
     border: none;
+    border-radius: 11px;
     color: var(--text-faint);
     cursor: pointer;
-    padding: 6px 0;
+    padding: 5px 0;
     min-width: 0;
+    transition: color .16s ease, background-color .16s ease;
   }
-  .nav-tab.active { color: var(--accent); }
-  .nav-tab:hover:not(.active) { color: var(--text-dim); }
+  @media (prefers-reduced-motion: reduce) { .nav-tab { transition: none; } }
+  /* The active tab reads as a seated pill, which survives a busy globe behind
+     the blur far better than a colour change on a 20px icon does. */
+  .nav-tab.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+  .nav-tab:hover:not(.active) { color: var(--text-dim); background: color-mix(in srgb, var(--text) 7%, transparent); }
   .nav-icon { display: flex; align-items: center; justify-content: center; }
   .nav-icon :global(svg) { width: 20px; height: 20px; }
-  .nav-label { font-size: 10px; letter-spacing: 0.3px; }
+  .nav-label { font-size: 9.5px; letter-spacing: 0.4px; }
 
   .more-menu {
     display: flex;

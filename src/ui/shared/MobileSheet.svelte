@@ -92,7 +92,7 @@
 <style>
   .sheet {
     position: fixed;
-    bottom: 56px;
+    bottom: calc(var(--mobile-nav-footprint) + env(safe-area-inset-bottom, 0px));
     left: 0;
     width: 100%;
     max-height: calc(35vh);

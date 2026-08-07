@@ -120,9 +120,18 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    background: var(--ui-bg);
-    border: 1px solid var(--border);
-    padding: 3px;
+    padding: 4px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    background: color-mix(in srgb, var(--ui-bg) 72%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    backdrop-filter: blur(16px) saturate(1.5);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  }
+  /* Same fallback as the mobile nav — a translucent bar with no blur behind it
+     is unreadable over the globe. */
+  @supports not (backdrop-filter: blur(4px)) {
+    .toolbar-row { background: var(--ui-bg); }
   }
   .btn-group {
     display: flex;
@@ -139,59 +148,49 @@
   .icon-btn {
     background: none;
     border: 1px solid transparent;
+    border-radius: 9px;
     color: var(--text-faint);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 25px;
-    height: 25px;
+    width: 27px;
+    height: 27px;
     padding: 0;
     cursor: pointer;
     position: relative;
+    transition: color .16s ease, background-color .16s ease;
   }
-  .icon-btn:hover { color: var(--text-dim); border-color: var(--border); }
-  .icon-btn.active { color: var(--text-dim); }
-  .icon-btn.active::after {
-    content: '';
-    position: absolute;
-    bottom: 1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 10px;
-    height: 2px;
-    background: var(--accent);
-    border-radius: 1px;
+  @media (prefers-reduced-motion: reduce) { .icon-btn { transition: none; } }
+  .icon-btn:hover { color: var(--text-dim); background: color-mix(in srgb, var(--text) 8%, transparent); }
+  /* Seated pill rather than a 2px underline tick — same active treatment as the
+     mobile nav, and it stays legible against a moving globe behind the blur. */
+  .icon-btn.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
   }
   .icon-btn:disabled { color: var(--text-ghost); cursor: default; opacity: 0.4; }
-  .icon-btn:disabled:hover { color: var(--text-ghost); border-color: transparent; }
+  .icon-btn:disabled:hover { color: var(--text-ghost); background: none; }
   .icon-btn :global(svg) { width: 13px; height: 13px; }
 
   .source-btn {
     background: none;
     border: 1px solid transparent;
+    border-radius: 9px;
     color: var(--text-faint);
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    height: 25px;
-    padding: 0 6px;
+    height: 27px;
+    padding: 0 9px;
     cursor: pointer;
     font-size: 12px;
     font-family: inherit;
     position: relative;
   }
-  .source-btn:hover { color: var(--text-dim); border-color: var(--border); }
-  .source-btn.active { color: var(--text-dim); }
-  .source-btn.active::after {
-    content: '';
-    position: absolute;
-    bottom: 1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 10px;
-    height: 2px;
-    background: var(--accent);
-    border-radius: 1px;
+  .source-btn:hover { color: var(--text-dim); background: color-mix(in srgb, var(--text) 8%, transparent); }
+  .source-btn.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
   }
   .source-icon { display: flex; align-items: center; }
   .source-icon :global(svg) { width: 13px; height: 13px; }

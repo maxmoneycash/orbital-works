@@ -1494,10 +1494,11 @@ export class App {
     };
     uiStore.lockTarget = lockLabels[this.activeLock] ?? 'Earth';
 
-    // Set view offset to center earth above mobile sheet (35vh + 56px nav bar)
+    // Set view offset to center earth above mobile sheet (35vh + the nav's
+    // footprint, kept in sync with --mobile-nav-footprint in global.css)
     if (uiStore.isMobile) {
       const sheetOffset = uiStore.activeMobileSheet
-        ? (window.innerHeight * 0.35 + 56) / 2
+        ? (window.innerHeight * 0.35 + 66) / 2
         : 0;
       this.camera.setViewOffsetY(sheetOffset);
     }
