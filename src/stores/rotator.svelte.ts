@@ -7,7 +7,7 @@ import { beamStore } from './beam.svelte';
 import { uiStore } from './ui.svelte';
 import { timeStore } from './time.svelte';
 
-const PREFIX = 'satvisor_rotator_';
+const PREFIX = 'orbital_rotator_';
 
 /** Shortest angular distance between two azimuth values (0–360°), always positive. */
 function azDist(a: number, b: number): number {

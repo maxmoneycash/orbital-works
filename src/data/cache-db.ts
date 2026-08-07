@@ -72,7 +72,7 @@ export async function cacheDelete(key: string): Promise<void> {
   } catch {}
 }
 
-/** Get raw string value (for satvisor_source_text_* entries). */
+/** Get raw string value (for orbital_source_text_* entries). */
 export async function cacheGetRaw(key: string): Promise<string | null> {
   try {
     const store = await tx('readonly');
@@ -128,7 +128,7 @@ export function cleanupLocalStorage(): void {
       const key = localStorage.key(i);
       if (
         key?.startsWith('tlescope_tle_') ||
-        key?.startsWith('satvisor_source_text_') ||
+        key?.startsWith('orbital_source_text_') ||
         key?.startsWith('threescope_catalog_')
       ) {
         localStorage.removeItem(key);

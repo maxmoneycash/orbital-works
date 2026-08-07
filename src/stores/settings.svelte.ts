@@ -24,77 +24,77 @@ class SettingsStore {
   }
 
   load() {
-    const savedGfx = localStorage.getItem('satvisor_graphics');
+    const savedGfx = localStorage.getItem('orbital_graphics');
     if (savedGfx) {
       try {
         this.graphics = { ...getPresetSettings(DEFAULT_PRESET), ...JSON.parse(savedGfx) };
       } catch { /* use default */ }
     }
-    const savedSim = localStorage.getItem('satvisor_simulation');
+    const savedSim = localStorage.getItem('orbital_simulation');
     if (savedSim) {
       try {
         this.simulation = { ...getSimPresetSettings(DEFAULT_SIM_PRESET), ...JSON.parse(savedSim) };
       } catch { /* use default */ }
     }
-    const savedFps = localStorage.getItem('satvisor_fps_limit');
+    const savedFps = localStorage.getItem('orbital_fps_limit');
     if (savedFps !== null) {
       const v = parseInt(savedFps, 10);
       this.fpsSliderValue = Math.min(v, 482);
       this.fpsLimit = v === 0 ? -1 : v > 480 ? (v > 482 ? v : 0) : v;
     }
-    const savedFov = localStorage.getItem('satvisor_fov');
+    const savedFov = localStorage.getItem('orbital_fov');
     if (savedFov !== null) this.fov = Math.max(10, Math.min(120, Number(savedFov)));
 
-    const savedTz = localStorage.getItem('satvisor_timezone');
+    const savedTz = localStorage.getItem('orbital_timezone');
     if (savedTz) {
       try {
         new Intl.DateTimeFormat('en-US', { timeZone: savedTz });
         this.timezone = savedTz;
       } catch {
         // Invalid stored timezone — reset to browser default
-        localStorage.removeItem('satvisor_timezone');
+        localStorage.removeItem('orbital_timezone');
       }
     }
   }
 
   applyGraphics(g: GraphicsSettings) {
     this.graphics = { ...g };
-    localStorage.setItem('satvisor_graphics', JSON.stringify(g));
+    localStorage.setItem('orbital_graphics', JSON.stringify(g));
     this.onGraphicsChange?.(g);
   }
 
   applySimulation(s: SimulationSettings) {
     this.simulation = { ...s };
-    localStorage.setItem('satvisor_simulation', JSON.stringify(s));
+    localStorage.setItem('orbital_simulation', JSON.stringify(s));
     this.onSimulationChange?.(s);
   }
 
   applyFpsLimit(sliderValue: number) {
     this.fpsSliderValue = Math.min(sliderValue, 482);
     this.fpsLimit = sliderValue === 0 ? -1 : sliderValue > 480 ? (sliderValue > 482 ? sliderValue : 0) : sliderValue;
-    localStorage.setItem('satvisor_fps_limit', String(sliderValue));
+    localStorage.setItem('orbital_fps_limit', String(sliderValue));
     this.onFpsLimitChange?.(this.fpsLimit);
   }
 
   applyFov(value: number) {
     this.fov = Math.max(10, Math.min(120, value));
-    localStorage.setItem('satvisor_fov', String(this.fov));
+    localStorage.setItem('orbital_fov', String(this.fov));
     this.onFovChange?.(this.fov);
   }
 
   applyTimezone(tz: string) {
     this.timezone = tz;
-    localStorage.setItem('satvisor_timezone', tz);
+    localStorage.setItem('orbital_timezone', tz);
   }
 
   /** Toggle between UTC and the user's local timezone. */
   toggleUtc() {
     if (this.timezone === 'UTC') {
-      const prev = localStorage.getItem('satvisor_prev_timezone')
+      const prev = localStorage.getItem('orbital_prev_timezone')
         ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
       this.applyTimezone(prev);
     } else {
-      localStorage.setItem('satvisor_prev_timezone', this.timezone);
+      localStorage.setItem('orbital_prev_timezone', this.timezone);
       this.applyTimezone('UTC');
     }
   }

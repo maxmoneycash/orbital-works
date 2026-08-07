@@ -1,6 +1,6 @@
 /**
  * Runtime catalog data loader.
- * Fetches satnogs + stdmag from satvisor-data mirror, caches in IndexedDB.
+ * Fetches satnogs + stdmag from the data mirror, caches in IndexedDB.
  */
 import { getMirrorCatalogUrl } from './tle-sources';
 import { cacheGet, cachePut, type CacheEntry } from './cache-db';

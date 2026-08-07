@@ -7,7 +7,7 @@ import { uiStore } from './ui.svelte';
 import { FeedbackEvent } from '../feedback/types';
 
 const DEG2RAD = Math.PI / 180;
-const PREFIX = 'satvisor_beam_';
+const PREFIX = 'orbital_beam_';
 
 /** Snapshot of beam tracking state for external consumers. */
 export interface BeamTrackingState {

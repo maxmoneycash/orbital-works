@@ -72,17 +72,16 @@
         <span>Satellite metadata</span><a href="https://satnogs.org" target="_blank">SatNOGS</a>
         <span>Moon textures</span><a href="https://svs.gsfc.nasa.gov/4720/" target="_blank">NASA SVS CGI Moon Kit</a>
         <span>Planet textures</span><a href="https://www.solarsystemscope.com/textures/" target="_blank">Solar System Scope</a>
-        <span>Inspired by</span><a href="https://github.com/aweeri/TLEscope" target="_blank">TLEscope</a>
-        <span>Forked from</span><a href="https://github.com/satvisorcom/satvisor" target="_blank">Satvisor</a>
         <span>Spacecraft specs</span><a href="https://github.com/Sleepingknight0/BWX-STARLINK" target="_blank">BWX-STARLINK</a>
         <span>RF / link budget</span><a href="https://github.com/noiseinspacechannel/NIS-Starlink-Video" target="_blank">NIS-Starlink-Video</a>
+        <span>Upstream</span><a href="https://github.com/satvisorcom/satvisor" target="_blank">Satvisor</a>
       </div>
     </div>
     <div class="section">
       <h3>License</h3>
-      <a href="https://github.com/satvisorcom/satvisor/blob/master/LICENSE" target="_blank">AGPL-3.0</a>
-      &middot; a fork of <a href="https://github.com/satvisorcom/satvisor" target="_blank">Satvisor</a>,
-      itself derived from <a href="https://github.com/aweeri/TLEscope" target="_blank">TLEscope</a>
+      <a href="https://github.com/maxmoneycash/orbital-works/blob/main/LICENSE" target="_blank">AGPL-3.0</a>
+      &middot; source at
+      <a href="https://github.com/maxmoneycash/orbital-works" target="_blank">github.com/maxmoneycash/orbital-works</a>
     </div>
   </div>
 </DraggableWindow>

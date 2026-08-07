@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Satvisor",
-  "mainBinaryName": "satvisor",
+  "productName": "Orbital Works",
+  "mainBinaryName": "orbital-works",
   "version": "1.0.0",
-  "identifier": "fyi.imsandra.satvisor",
+  "identifier": "com.maxmoneycash.orbitalworks",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "Satvisor",
+        "title": "Orbital Works",
         "width": 1280,
         "height": 720,
         "minWidth": 800,

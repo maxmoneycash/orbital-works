@@ -1,6 +1,6 @@
 /**
  * SatNOGS data utilities.
- * Data is fetched at runtime from the satvisor-data mirror and cached in localStorage.
+ * Data is fetched at runtime from the data mirror and cached in localStorage.
  */
 
 import { getSatnogsRaw } from './catalog';

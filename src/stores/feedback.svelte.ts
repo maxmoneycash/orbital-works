@@ -2,7 +2,7 @@ import { FeedbackEvent, FEEDBACK_MAP, CONTINUOUS_EVENTS, type FeedbackEffect } f
 import type { HapticTarget } from '../feedback/target-haptic';
 import type { AudioTarget } from '../feedback/target-audio';
 
-const PREFIX = 'satvisor_feedback_';
+const PREFIX = 'orbital_feedback_';
 
 class FeedbackStore {
   // Persisted toggles

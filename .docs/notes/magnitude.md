@@ -1,6 +1,6 @@
 # Satellite Visual Magnitude Estimation
 
-Satvisor estimates how bright a satellite appears during a pass. The estimate
+Orbital Works estimates how bright a satellite appears during a pass. The estimate
 is shown in the Mag column of the Passes window and in the hover tooltip.
 
 ## How It Works
@@ -11,7 +11,7 @@ apparent_mag = stdMag + range_correction + phase_correction + extinction
 
 **Standard magnitude** (stdMag) is the satellite's intrinsic brightness at 1000 km
 range and 90° phase angle. This value is fetched at runtime from the
-`satvisor-data` mirror and cached in localStorage, keyed by NORAD catalog number.
+`orbital-works-data` mirror and cached in localStorage, keyed by NORAD catalog number.
 
 **Range correction** accounts for distance — closer satellites appear brighter.
 `5 · log₁₀(range / 1000)`. A satellite at 500 km gets a -1.5 mag boost.
@@ -26,7 +26,7 @@ Kasten-Young (1989) airmass formula with 0.2 mag/airmass (clear sky).
 
 ## Where the Data Comes From
 
-TLE files contain no brightness information. The `satvisor-data` repo generates
+TLE files contain no brightness information. The `orbital-works-data` repo generates
 `catalog/stdmag.json` by merging three external sources, in priority order:
 
 ### 1. McCants QuickSat Database (qs.mag) — ~3,000 satellites
@@ -86,7 +86,7 @@ If none of these apply, `stdMag` is null and the UI shows `?`.
 
 ## Data Pipeline
 
-The stdmag data is generated weekly by the `satvisor-data` repo
+The stdmag data is generated weekly by the `orbital-works-data` repo
 (`scripts/generate-stdmag.mjs`), which fetches McCants and SATCAT, merges
 by priority, and writes `catalog/stdmag.json` (~390 KB, ~33,000 entries).
 
@@ -121,4 +121,4 @@ uniform spheres. A Starlink edge-on vs face-on can differ by 3+ magnitudes.
 ## Regenerating
 
 To update the stdmag data, trigger the `update-catalog` workflow in the
-`satvisor-data` repo. The app will pick up the new data on its next fetch.
+`orbital-works-data` repo. The app will pick up the new data on its next fetch.

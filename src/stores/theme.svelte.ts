@@ -4,9 +4,9 @@ import {
 } from '../themes';
 import { refreshTheme } from '../ui/shared/theme';
 
-const ACTIVE_KEY = 'satvisor_theme_active';
-const CUSTOM_KEY = 'satvisor_themes_custom';
-const STYLE_EL_ID = 'satvisor-theme-css';
+const ACTIVE_KEY = 'orbital_theme_active';
+const CUSTOM_KEY = 'orbital_themes_custom';
+const STYLE_EL_ID = 'orbital-theme-css';
 
 class ThemeStore {
   activeId = $state(DEFAULT_THEME_ID);

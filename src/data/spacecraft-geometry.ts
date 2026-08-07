@@ -3,7 +3,7 @@
  * its parts list, which is what lets the anatomy view explode into labelled
  * subsystems and lets the workbench rebuild a vehicle from mixed components.
  *
- * Ported into satvisor from Orbital Works.
+ * Orbital Works spacecraft dataset.
  */
 import * as THREE from 'three';
 import type { Part } from './spacecraft';

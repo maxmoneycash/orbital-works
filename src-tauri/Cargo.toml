@@ -1,10 +1,10 @@
 [package]
-name = "satvisor"
+name = "orbital-works"
 version = "1.0.0"
 edition = "2021"
 
 [lib]
-name = "satvisor_lib"
+name = "orbital_works_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

@@ -1,17 +1,16 @@
 import type { FeedbackEffect } from './types';
 
 /**
- * FORK NOTE — stubbed out.
+ * Stubbed-out feedback target.
  *
- * Upstream satvisor drives an optional third feedback target (alongside the
- * Web Vibration API and WebAudio) through @satvisorcom/buttplug. Those two
- * packages are published to GitHub Packages behind authentication, so a plain
- * `npm install` of the upstream repo fails with E403 for anyone without a
- * token. This stub keeps the feedback interface and UI intact while reporting
- * the target as unsupported, so the fork builds from a clean checkout.
+ * This slot used to drive an optional third feedback target alongside the Web
+ * Vibration API and WebAudio, via packages published to GitHub Packages behind
+ * authentication — which made `npm install` fail with E403 for anyone without
+ * a token. The dependencies are gone; this stub keeps the feedback interface
+ * shape intact and reports the target as unsupported, so the project builds
+ * from a clean checkout with no registry configuration.
  *
- * To restore: `git checkout upstream/main -- src/feedback/target-buttplug.ts`,
- * re-add the two dependencies and the @satvisorcom .npmrc registry line.
+ * The UI for it is hidden when VITE_FEEDBACK_TOYS=false.
  */
 export interface ButtplugDeviceInfo {
   name: string;

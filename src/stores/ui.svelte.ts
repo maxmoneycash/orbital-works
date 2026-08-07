@@ -294,43 +294,43 @@ class UIStore {
       const saved = localStorage.getItem(key);
       return saved !== null ? (defaultVal ? saved !== 'false' : saved === 'true') : defaultVal;
     };
-    this.hideUnselected = load('satvisor_spotlight', false);
-    this.showOrbits = load('satvisor_orbits', false);
-    this.showClouds = load('satvisor_clouds', true);
-    this.showNightLights = load('satvisor_night', true);
-    this.showSkybox = load('satvisor_skybox', true);
-    this.showCountries = load('satvisor_countries', false);
-    this.showGrid = load('satvisor_grid', false);
-    this.showSkyGrid = load('satvisor_skygrid', true);
-    this.radarVfx = load('satvisor_radar_vfx', true);
-    this.radarShowCelestial = load('satvisor_radar_celestial', false);
-    this.singleSelectMode = load('satvisor_single_select', true);
-    const savedTab = localStorage.getItem('satvisor_passes_tab');
+    this.hideUnselected = load('orbital_spotlight', false);
+    this.showOrbits = load('orbital_orbits', false);
+    this.showClouds = load('orbital_clouds', true);
+    this.showNightLights = load('orbital_night', true);
+    this.showSkybox = load('orbital_skybox', true);
+    this.showCountries = load('orbital_countries', false);
+    this.showGrid = load('orbital_grid', false);
+    this.showSkyGrid = load('orbital_skygrid', true);
+    this.radarVfx = load('orbital_radar_vfx', true);
+    this.radarShowCelestial = load('orbital_radar_celestial', false);
+    this.singleSelectMode = load('orbital_single_select', true);
+    const savedTab = localStorage.getItem('orbital_passes_tab');
     if (savedTab === 'selected' || savedTab === 'nearby') this.passesTab = savedTab;
-    const savedTimeTab = localStorage.getItem('satvisor_time_tab');
+    const savedTimeTab = localStorage.getItem('orbital_time_tab');
     if (savedTimeTab === 'datetime' || savedTimeTab === 'epoch') this.timeTab = savedTimeTab;
   }
 
   setSingleSelectMode(value: boolean) {
     this.singleSelectMode = value;
-    localStorage.setItem('satvisor_single_select', String(value));
+    localStorage.setItem('orbital_single_select', String(value));
   }
 
   setTimeTab(tab: 'datetime' | 'epoch') {
     this.timeTab = tab;
-    localStorage.setItem('satvisor_time_tab', tab);
+    localStorage.setItem('orbital_time_tab', tab);
   }
 
   setPassesTab(tab: 'selected' | 'nearby') {
     this.passesTab = tab;
-    localStorage.setItem('satvisor_passes_tab', tab);
+    localStorage.setItem('orbital_passes_tab', tab);
   }
 
   /** Initialize marker group visibility from config defaults + localStorage */
   loadMarkerGroups(groups: { id: string; defaultVisible: boolean }[]) {
     const vis: Record<string, boolean> = {};
     for (const g of groups) {
-      const saved = localStorage.getItem(`satvisor_markers_${g.id}`);
+      const saved = localStorage.getItem(`orbital_markers_${g.id}`);
       vis[g.id] = saved !== null ? saved === 'true' : g.defaultVisible;
     }
     this.markerVisibility = vis;
@@ -338,7 +338,7 @@ class UIStore {
 
   setMarkerGroupVisible(groupId: string, visible: boolean) {
     this.markerVisibility = { ...this.markerVisibility, [groupId]: visible };
-    localStorage.setItem(`satvisor_markers_${groupId}`, String(visible));
+    localStorage.setItem(`orbital_markers_${groupId}`, String(visible));
     this.onMarkerGroupChange?.(groupId, visible);
   }
 
@@ -347,23 +347,23 @@ class UIStore {
       const v = localStorage.getItem(key);
       return v !== null ? Number(v) : def;
     };
-    this.passMinEl = num('satvisor_pass_min_el', 0);
-    this.passMaxEl = num('satvisor_pass_max_el', 90);
-    this.passAzFrom = num('satvisor_pass_az_from', 0);
-    this.passAzTo = num('satvisor_pass_az_to', 360);
-    this.passMinDuration = num('satvisor_pass_min_dur', 0);
-    const vis = localStorage.getItem('satvisor_pass_visibility');
+    this.passMinEl = num('orbital_pass_min_el', 0);
+    this.passMaxEl = num('orbital_pass_max_el', 90);
+    this.passAzFrom = num('orbital_pass_az_from', 0);
+    this.passAzTo = num('orbital_pass_az_to', 360);
+    this.passMinDuration = num('orbital_pass_min_dur', 0);
+    const vis = localStorage.getItem('orbital_pass_visibility');
     if (vis === 'observable' || vis === 'visible') this.passVisibility = vis;
-    this.passFreqMinMHz = num('satvisor_pass_freq_min_mhz', 0);
-    this.passFreqMaxMHz = num('satvisor_pass_freq_max_mhz', 0);
-    const mask = localStorage.getItem('satvisor_pass_horizon_mask');
+    this.passFreqMinMHz = num('orbital_pass_freq_min_mhz', 0);
+    this.passFreqMaxMHz = num('orbital_pass_freq_max_mhz', 0);
+    const mask = localStorage.getItem('orbital_pass_horizon_mask');
     if (mask) {
       try { this.passHorizonMask = JSON.parse(mask); } catch { /* use default */ }
     }
   }
 
   savePassFilter(key: string, value: string | number) {
-    localStorage.setItem(`satvisor_pass_${key}`, String(value));
+    localStorage.setItem(`orbital_pass_${key}`, String(value));
   }
 
   setPassMinEl(v: number) {
@@ -417,7 +417,7 @@ class UIStore {
       mask.every((m, i) => m.az === this.passHorizonMask[i].az && m.minEl === this.passHorizonMask[i].minEl);
     if (same) return;
     this.passHorizonMask = mask;
-    localStorage.setItem('satvisor_pass_horizon_mask', JSON.stringify(mask));
+    localStorage.setItem('orbital_pass_horizon_mask', JSON.stringify(mask));
     this.onFiltersChanged?.();
   }
 
@@ -438,7 +438,7 @@ class UIStore {
     this.passHorizonMask = [];
     this.passFreqMinMHz = 0; this.passFreqMaxMHz = 0;
     for (const k of ['min_el', 'max_el', 'az_from', 'az_to', 'visibility', 'min_dur', 'horizon_mask', 'freq_min_mhz', 'freq_max_mhz']) {
-      localStorage.removeItem(`satvisor_pass_${k}`);
+      localStorage.removeItem(`orbital_pass_${k}`);
     }
     this.onFiltersChanged?.();
   }
@@ -446,16 +446,16 @@ class UIStore {
   setToggle(key: string, value: boolean) {
     try {
       switch (key) {
-        case 'hideUnselected': this.hideUnselected = value; localStorage.setItem('satvisor_spotlight', String(value)); break;
-        case 'showOrbits': this.showOrbits = value; localStorage.setItem('satvisor_orbits', String(value)); break;
-        case 'showClouds': this.showClouds = value; localStorage.setItem('satvisor_clouds', String(value)); break;
-        case 'showNightLights': this.showNightLights = value; localStorage.setItem('satvisor_night', String(value)); break;
-        case 'showSkybox': this.showSkybox = value; localStorage.setItem('satvisor_skybox', String(value)); break;
-        case 'showCountries': this.showCountries = value; localStorage.setItem('satvisor_countries', String(value)); break;
-        case 'showGrid': this.showGrid = value; localStorage.setItem('satvisor_grid', String(value)); break;
-        case 'showSkyGrid': this.showSkyGrid = value; localStorage.setItem('satvisor_skygrid', String(value)); break;
-        case 'radarVfx': this.radarVfx = value; localStorage.setItem('satvisor_radar_vfx', String(value)); break;
-        case 'radarShowCelestial': this.radarShowCelestial = value; localStorage.setItem('satvisor_radar_celestial', String(value)); break;
+        case 'hideUnselected': this.hideUnselected = value; localStorage.setItem('orbital_spotlight', String(value)); break;
+        case 'showOrbits': this.showOrbits = value; localStorage.setItem('orbital_orbits', String(value)); break;
+        case 'showClouds': this.showClouds = value; localStorage.setItem('orbital_clouds', String(value)); break;
+        case 'showNightLights': this.showNightLights = value; localStorage.setItem('orbital_night', String(value)); break;
+        case 'showSkybox': this.showSkybox = value; localStorage.setItem('orbital_skybox', String(value)); break;
+        case 'showCountries': this.showCountries = value; localStorage.setItem('orbital_countries', String(value)); break;
+        case 'showGrid': this.showGrid = value; localStorage.setItem('orbital_grid', String(value)); break;
+        case 'showSkyGrid': this.showSkyGrid = value; localStorage.setItem('orbital_skygrid', String(value)); break;
+        case 'radarVfx': this.radarVfx = value; localStorage.setItem('orbital_radar_vfx', String(value)); break;
+        case 'radarShowCelestial': this.radarShowCelestial = value; localStorage.setItem('orbital_radar_celestial', String(value)); break;
         case 'rotatorOpen': this.rotatorOpen = value; break; // persisted by DraggableWindow
       }
     } catch {

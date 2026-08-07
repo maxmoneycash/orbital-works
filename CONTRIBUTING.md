@@ -4,11 +4,6 @@
 
 - **Node.js** 20+
 - **npm** (lockfile-based)
-- GitHub Packages auth for `@satvisorcom` scope — add to `~/.npmrc`:
-  ```
-  //npm.pkg.github.com/:_authToken=YOUR_TOKEN
-  @satvisorcom:registry=https://npm.pkg.github.com
-  ```
 
 ## Getting Started
 
@@ -140,7 +135,7 @@ All colors go through CSS custom properties in `src/styles/global.css` `:root`. 
 Class-based singletons with `$state()` fields, exported as `export const fooStore = new FooStore()`.
 
 - Callback hooks (e.g., `onGraphicsChange`) registered by `App` at init, not Svelte subscriptions
-- localStorage persistence: `load()` at startup + immediate writes in setters, all keys prefixed `satvisor_`
+- localStorage persistence: `load()` at startup + immediate writes in setters, all keys prefixed `orbital_`
 - Immutable updates for collections: `this.x = new Set(...)`, `this.x = { ...this.x, ... }`
 - Store `load()` calls go in `app.ts` init
 
@@ -149,7 +144,7 @@ Class-based singletons with `$state()` fields, exported as `export const fooStor
 Most user-facing toggles persist to localStorage. If a setting should survive page reload, follow this pattern:
 
 1. Add `$state` field to the store
-2. Add to `loadToggles()` with a `satvisor_*` key
+2. Add to `loadToggles()` with a `orbital_*` key
 3. Add a case to `setToggle()`
 4. Wire in component with `<Checkbox>` + `onchange` calling the setter
 

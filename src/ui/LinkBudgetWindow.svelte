@@ -33,7 +33,7 @@
   let rain = $state(0);
   let zoom = $state(false);
 
-  /* The satellite satvisor is actually tracking, if there is exactly one. */
+  /* The satellite the app is actually tracking, if there is exactly one. */
   const tracked = $derived(uiStore.selectedSatData.length ? uiStore.selectedSatData[0] : null);
   const craftId = $derived(manualCraft ?? (tracked ? guessCraft(tracked.name) : 'sl-v2mini'));
   const craft = $derived(FLEET.find((f) => f.id === craftId)!);

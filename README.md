@@ -1,14 +1,53 @@
 # Orbital Works
 
-A satellite tracker with a spacecraft hardware and RF console bolted on.
+A real-time satellite tracker with a spacecraft hardware and RF console bolted
+on. Runs entirely in the browser — no account, no backend.
 
-Fork of [Satvisor](https://github.com/satvisorcom/satvisor) (AGPL-3.0), itself
-derived from [TLEscope](https://github.com/aweeri/TLEscope). The 3D globe, sky
-view, orrery, pass predictor, SatNOGS browser, Doppler charts, antenna rotator
-control, themes and the whole draggable-window canvas are upstream's work and
-are kept intact. This fork adds two windows and unblocks the build.
+**Live: [orbital-works.vercel.app](https://orbital-works.vercel.app)**
 
-## Run
+Propagates the public catalog with SGP4 against live orbital elements, renders
+it on a textured Earth, and tells you when things fly over you and how bright
+they will be. Then it lets you open the spacecraft up and close the link.
+
+## What's in it
+
+**Tracking.** 3D globe with clouds, night lights, atmospheric scattering and
+terrain elevation. Orbit trails, ground tracks, footprints, apogee/perigee
+markers. Sky view for what's above you right now, and an orrery for the
+inner solar system.
+
+**Passes.** Pass prediction over your observer position with elevation,
+azimuth, duration, visual magnitude and eclipse state — filterable by
+elevation, azimuth window, duration, frequency, and a custom horizon mask for
+the trees and buildings you actually have.
+
+**Radio.** Polar plot, Doppler shift curves, SatNOGS transmitter database, and
+serial antenna rotator control speaking Yaesu, SPID, GS-232, EasyComm,
+Prosistel, RC2800, FLIR and rotctld/rigctld.
+
+**Anatomy.** 15 spacecraft modelled as parts lists over a shared 66-component
+library — buses, arrays, Hall thrusters, phased arrays, laser terminals,
+brightness mitigation. The 3D model is generated procedurally from the parts
+list rather than loaded as a fixed mesh, so the exploded view and the mass and
+power budgets all fall out of the same data. Modelled mass is shown against
+published mass, so divergence is visible rather than hidden.
+
+**Link budget.** Phased-array and link modelling wired to the live tracking
+state. It reads the tracked satellite and your observer position, derives the
+real elevation, slant range and off-nadir steering angle, and runs the budget
+against that geometry: EIRP, free-space loss, rain fade, co-channel
+interference, achievable modulation and rate. Push element spacing past ~0.55λ
+and a grating lobe appears.
+
+The Ku user link uses Starlink's actual OFDM waveform — 1024 subcarriers,
+750 Hz frames, 4QAM and 16QAM only — not DVB-S2X. Gateway links fall back to
+DVB-S2X, labelled as the assumption it is.
+
+Everything lives in draggable, resizable windows on one canvas. `Ctrl+K` opens
+the command palette; the dock along the bottom reopens anything you've closed.
+Layout persists across reloads. 12 themes, and a theme editor.
+
+## Run it
 
 ```bash
 npm install
@@ -16,46 +55,18 @@ npm run dev      # http://localhost:1420
 npm run build
 ```
 
-No GitHub token required — see "Build" below for why that is worth saying.
+No tokens, no registry configuration — a clean checkout builds.
 
-## What this fork adds
+Desktop builds via Tauri: `npm run tauri dev`.
 
-### Anatomy
-15 spacecraft modelled as parts lists over a shared 66-component library —
-buses, arrays, Hall thrusters, phased arrays, laser terminals, brightness
-mitigation. The 3D model is generated procedurally from the parts list rather
-than loaded as a fixed mesh, so the exploded view and the mass and power
-budgets all fall out of the same data. Modelled mass is shown against published
-mass so divergence is visible rather than hidden. Track a satellite and the
-window follows it to the matching hardware.
+## Data
 
-### Link budget
-Phased-array and link modelling wired into the live tracking state. It reads
-the tracked satellite and the configured observer, derives the real elevation,
-slant range and off-nadir steering angle, and runs the budget against that
-geometry: EIRP, free-space loss, rain, co-channel interference, achievable
-modulation and rate. Push element spacing past ~0.55λ and a grating lobe
-appears.
-
-The Ku user link uses Starlink's actual OFDM waveform — 1024 subcarriers,
-750 Hz frames, 4QAM and 16QAM only — not DVB-S2X. Gateway links fall back to
-DVB-S2X, labelled as the assumption it is.
-
-Both are in the command palette: `Ctrl+K` → "Anatomy" or "Link Budget".
-
-## Build
-
-Upstream requires a GitHub personal access token, because
-`@satvisorcom/buttplug` and `@satvisorcom/buttplug-wasm` live on GitHub
-Packages and GitHub demands auth for npm even on public packages. Upstream's
-`VITE_FEEDBACK_TOYS=false` flag removes the *feature* but not the *dependency* —
-rollup still resolves the import chain and the build fails. Tested.
-
-So this fork drops both packages and stubs `src/feedback/target-buttplug.ts`.
-Haptic and audio feedback are untouched. To restore: check that file out from
-upstream, re-add the dependencies and the `.npmrc` registry line.
-
-## Data provenance
+Orbital elements come from [CelesTrak](https://celestrak.org), transmitter data
+from [SatNOGS](https://db.satnogs.org). Both are mirrored hourly to
+[orbital-works-data](https://github.com/maxmoneycash/orbital-works-data) by
+GitHub Actions, so the app reads CORS-friendly static JSON instead of hitting
+rate limits, and keeps working when the upstream APIs are throttling. The app
+falls back to CelesTrak directly if the mirror is unreachable.
 
 Where SpaceX has published nothing — V3 mass, dimensions, layout — the model
 says so rather than inventing a number.
@@ -66,8 +77,27 @@ says so rather than inventing a number.
   registry in [BWX-STARLINK](https://github.com/Sleepingknight0/BWX-STARLINK) (MIT),
   tracing to UT Austin's live-signal teardown (IEEE TAES 2023)
 
-## Licence
+## Configuration
 
-**AGPL-3.0**, inherited from upstream and not optional. If you deploy this
-where others can use it over a network, you must offer them the complete source.
-Keep the Satvisor and TLEscope credits.
+| Variable | Effect |
+|---|---|
+| `VITE_TEXTURE_QUALITY=lite` | Force low-resolution textures (~15× smaller) |
+| `VITE_DATA_MIRROR` | Override the data mirror base URL |
+| `VITE_CELESTRAK_BASE` | Override the CelesTrak base URL |
+| `VITE_FEEDBACK_TOYS=false` | Hide the external-device feedback UI |
+| `VITE_SITE_URL` | Absolute origin for `og:` tags |
+
+## Licence and credits
+
+**AGPL-3.0.** This is a network-deployed application, so §13 applies: anyone
+using it over a network is entitled to the complete corresponding source, which
+is this repository.
+
+Orbital Works is a modified version of
+[Satvisor](https://github.com/satvisorcom/satvisor), itself derived from
+[TLEscope](https://github.com/aweeri/TLEscope). The tracking engine, globe
+rendering, pass predictor and window system come from that lineage and remain
+under AGPL-3.0. See [NOTICE](NOTICE) for what was changed.
+
+Textures: [NASA SVS CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/),
+[Solar System Scope](https://www.solarsystemscope.com/textures/).

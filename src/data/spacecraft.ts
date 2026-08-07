@@ -2,7 +2,7 @@
  * Spacecraft hardware model — parts library, fleet definitions, mass/power
  * budgets and RF link budget. Framework-free; no THREE or DOM dependencies.
  *
- * Ported into satvisor from Orbital Works. Sources:
+ * Orbital Works spacecraft dataset. Sources:
  *  - Band gains, EIRP densities, MODCOD thresholds: SpaceX FCC filings, via
  *    github.com/noiseinspacechannel/NIS-Starlink-Video (MIT).
  *  - Waveform, beam counts, cell geometry, brightness magnitudes: spec registry

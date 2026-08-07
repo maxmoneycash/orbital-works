@@ -6,7 +6,7 @@ import { calculateDopplerShift } from '../astro/doppler';
 import { observerStore } from './observer.svelte';
 import { timeStore } from './time.svelte';
 
-const PREFIX = 'satvisor_rig_';
+const PREFIX = 'orbital_rig_';
 
 export type RigStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 

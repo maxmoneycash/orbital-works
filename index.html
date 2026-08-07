@@ -6,7 +6,7 @@
   <title>Orbital Works — satellite tracker and spacecraft anatomy</title>
   <link rel="icon" type="image/png" href="/textures/ui/sat_icon.png">
   <link rel="preload" id="preload-earth" as="image" crossorigin="anonymous">
-  <script>var f='%VITE_TEXTURE_QUALITY%';var lite=f?(f==='lite'):localStorage.getItem('satvisor_lite_mode')==='true';document.getElementById('preload-earth').href=lite?'/textures/earth/color.lite.webp':'/textures/earth/color.webp';</script>
+  <script>var f='%VITE_TEXTURE_QUALITY%';var lite=f?(f==='lite'):localStorage.getItem('orbital_lite_mode')==='true';document.getElementById('preload-earth').href=lite?'/textures/earth/color.lite.webp':'/textures/earth/color.webp';</script>
   <meta name="description" content="3D satellite tracker with pass predictions, antenna rotator control, sky view, Doppler analysis, spacecraft anatomy and phased-array link budgets. Free, open source, runs in your browser.">
   <meta property="og:title" content="Orbital Works">
   <meta property="og:description" content="3D satellite tracker with pass predictions, antenna rotator control, sky view, Doppler analysis, spacecraft anatomy and phased-array link budgets. Free, open source, runs in your browser.">
@@ -119,7 +119,7 @@
     // Apply saved theme before first paint to prevent flash
     (function() {
       try {
-        var id = localStorage.getItem('satvisor_theme_active');
+        var id = localStorage.getItem('orbital_theme_active');
         if (!id || id === 'dark') return;
         var vars = null;
         var minimal = {
@@ -139,7 +139,7 @@
         if (minimal[id]) {
           vars = minimal[id];
         } else {
-          var raw = localStorage.getItem('satvisor_themes_custom');
+          var raw = localStorage.getItem('orbital_themes_custom');
           var customs = raw ? JSON.parse(raw) : [];
           var match = customs.find(function(t) { return t.id === id; });
           if (match && match.vars) vars = match.vars;
@@ -174,12 +174,12 @@
       (function() {
         var forced = '%VITE_TEXTURE_QUALITY%';
         if (forced === 'lite' || forced === 'full') return;
-        var lite = localStorage.getItem('satvisor_lite_mode') === 'true';
+        var lite = localStorage.getItem('orbital_lite_mode') === 'true';
         if (lite) return; // In lite mode: indicator shown in main UI instead
 
         var hint = document.getElementById('loading-slow-hint');
         var switchToLite = function() {
-          localStorage.setItem('satvisor_lite_mode', 'true');
+          localStorage.setItem('orbital_lite_mode', 'true');
           location.reload();
         };
 

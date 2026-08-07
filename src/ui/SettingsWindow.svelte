@@ -140,11 +140,11 @@
   let liteMode = $state(
     __FORCED_TEXTURE_QUALITY__
       ? __FORCED_TEXTURE_QUALITY__ === 'lite'
-      : localStorage.getItem('satvisor_lite_mode') === 'true'
+      : localStorage.getItem('orbital_lite_mode') === 'true'
   );
 
   function setTextureQuality(lite: boolean) {
-    localStorage.setItem('satvisor_lite_mode', String(lite));
+    localStorage.setItem('orbital_lite_mode', String(lite));
     location.reload();
   }
 

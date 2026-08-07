@@ -10,7 +10,7 @@ declare const __COMMIT_HASH__: string;
 declare const __COMMIT_DATE__: string;
 /** Build-time forced texture quality: 'lite', 'full', or '' (user choice). */
 declare const __FORCED_TEXTURE_QUALITY__: '' | 'lite' | 'full';
-/** Build-time override for satvisor-data mirror base URL (no trailing slash). Empty = default GitHub mirror. */
+/** Build-time override for data mirror base URL (no trailing slash). Empty = default GitHub mirror. */
 declare const __DATA_MIRROR__: string;
 /** Build-time override for CelesTrak base URL (no trailing slash). Empty = default https://celestrak.org */
 declare const __CELESTRAK_BASE__: string;

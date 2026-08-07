@@ -129,7 +129,7 @@ const LITE_COLORS = new Set([
 
 const _isLite = __FORCED_TEXTURE_QUALITY__
   ? __FORCED_TEXTURE_QUALITY__ === 'lite'
-  : localStorage.getItem('satvisor_lite_mode') === 'true';
+  : localStorage.getItem('orbital_lite_mode') === 'true';
 
 if (_isLite) {
   const liteUrl = (url: string) => url.replace('.webp', '.lite.webp');

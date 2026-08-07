@@ -1,0 +1,60 @@
+Orbital Works
+Copyright (C) 2026 Max Mohammadi
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See LICENSE for the full text.
+
+------------------------------------------------------------------------------
+Derivation and modification notice (AGPL-3.0 sections 4 and 5)
+------------------------------------------------------------------------------
+
+This program is a modified version of Satvisor
+(https://github.com/satvisorcom/satvisor), which is itself derived from
+TLEscope (https://github.com/aweeri/TLEscope). Both are licensed under
+AGPL-3.0, and copyright in the unmodified portions remains with their
+respective authors.
+
+Carried over substantially unchanged: the SGP4 tracking engine, 3D globe and
+scene rendering, sky view, orrery, pass predictor, Doppler analysis, SatNOGS
+browser, antenna rotator and rig control, theme system, and the
+draggable-window canvas.
+
+Changes made in this version:
+
+  - Added an Anatomy window: 15 spacecraft modelled as parts lists over a
+    shared 66-component library, with 3D geometry generated procedurally from
+    the parts list and mass/power budgets derived from the same data.
+
+  - Added a Link Budget window: phased-array and RF link modelling driven by
+    the live tracking state, deriving elevation, slant range and off-nadir
+    steering angle from the tracked satellite and configured observer.
+
+  - Removed the optional external-device feedback target and its two
+    authenticated GitHub Packages dependencies, replacing it with a stub, so
+    the project builds from a clean checkout without registry credentials.
+
+  - Replaced the data mirror with an independently operated one
+    (https://github.com/maxmoneycash/orbital-works-data) fetching from the
+    same upstream sources, CelesTrak and SatNOGS.
+
+  - Rebranded to Orbital Works: application name, icons, metadata, desktop
+    bundle identifiers, and persisted storage key prefixes.
+
+  - Replaced GitHub Pages deployment with Vercel, and resolved Open Graph
+    tags against the deployment domain at build time.
+
+------------------------------------------------------------------------------
+Third-party data and assets
+------------------------------------------------------------------------------
+
+Orbital elements                CelesTrak (https://celestrak.org)
+Transmitter database            SatNOGS (https://db.satnogs.org)
+Standard magnitudes             Mike McCants' visual magnitude tables
+Moon textures                   NASA Scientific Visualization Studio,
+                                CGI Moon Kit (https://svs.gsfc.nasa.gov/4720/)
+Planet textures                 Solar System Scope
+                                (https://www.solarsystemscope.com/textures/)
+Spacecraft RF specifications    BWX-STARLINK (MIT)
+                                NIS-Starlink-Video (MIT)

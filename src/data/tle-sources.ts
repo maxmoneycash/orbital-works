@@ -90,9 +90,9 @@ export const TLE_SOURCES: TLESource[] = [
   { name: 'GEO Protected Zone+', group: 'gpz-plus', category: 'misc', special: true },
 ];
 
-// ── Mirror (satvisor-data repo) ──
+// ── Mirror (orbital-works-data repo) ──
 
-const MIRROR_BASE = __DATA_MIRROR__ || 'https://raw.githubusercontent.com/satvisorcom/satvisor-data/master';
+const MIRROR_BASE = __DATA_MIRROR__ || 'https://raw.githubusercontent.com/maxmoneycash/orbital-works-data/main';
 
 export function getMirrorUrl(group: string, special = false): string {
   const dir = special ? 'celestrak/special/json' : 'celestrak/json';

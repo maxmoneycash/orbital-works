@@ -36,10 +36,10 @@ interface CustomSourceDef {
   url?: string;
 }
 
-const ENABLED_KEY = 'satvisor_sources_enabled';
-const CUSTOM_KEY = 'satvisor_sources_custom';
-const TEXT_KEY_PREFIX = 'satvisor_source_text_';
-const LEGACY_GROUP_KEY = 'satvisor_tle_group';
+const ENABLED_KEY = 'orbital_sources_enabled';
+const CUSTOM_KEY = 'orbital_sources_custom';
+const TEXT_KEY_PREFIX = 'orbital_source_text_';
+const LEGACY_GROUP_KEY = 'orbital_tle_group';
 
 class SourcesStore {
   sources = $state<TLESourceConfig[]>([]);
