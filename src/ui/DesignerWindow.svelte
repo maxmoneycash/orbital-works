@@ -406,6 +406,28 @@
     if (urlChecked) return;
     urlChecked = true;
     history = loadHistory();
+
+    /**
+     * First visit opens the Designer. Landing on a fifteen-window tracking
+     * console gives a newcomer no hint that the thing they can actually make
+     * something with is behind a dock icon. This fires once ever — the flag is
+     * set immediately, so a returning visitor gets whatever layout they left,
+     * and anyone arriving on a share link is handled by loadFromUrl() below.
+     */
+    try {
+      if (!localStorage.getItem('orbital_seen')) {
+        localStorage.setItem('orbital_seen', '1');
+        if (!new URLSearchParams(location.search).get('d')) {
+          if (uiStore.isMobile) uiStore.openMobileSheet('designer');
+          else { uiStore.designerOpen = true; uiStore.designerFocus++; }
+          track('first_run_designer_opened', { mobile: uiStore.isMobile });
+        }
+      }
+    } catch {
+      // Storage disabled — a visitor who can't be remembered simply gets the
+      // app's default layout, which is the pre-existing behaviour.
+    }
+
     loadFromUrl();
   });
 
