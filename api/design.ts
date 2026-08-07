@@ -15,8 +15,8 @@
  * nothing reaches the client unvalidated.
  */
 import { generateText } from 'ai';
-import { DesignSchema, GEOM_KINDS, GEOM_MATS, PART_CATS, PART_DIRS, PART_SLOTS } from '../src/data/design-schema';
-import { PARTS } from '../src/data/spacecraft';
+import { DesignSchema, GEOM_KINDS, GEOM_MATS, PART_CATS, PART_DIRS, PART_SLOTS } from '../src/data/design-schema.js';
+import { PARTS } from '../src/data/spacecraft.js';
 
 const MODEL = 'anthropic/claude-sonnet-4.6';
 const MAX_PROMPT_CHARS = 600;
