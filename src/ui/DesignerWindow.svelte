@@ -6,8 +6,8 @@
    * geometry pipeline renders it. The model never writes three.js — it emits a
    * parts list in the same shape as the hand-authored fleet, which means the
    * result is graded by the same analyze()/validate() the real vehicles are.
-   * The critique panel below is not cosmetic: it is the app disagreeing with
-   * the design where the physics does not close.
+   * The checks panel is the app disagreeing with the design where the physics
+   * does not close.
    */
   import { onDestroy } from 'svelte';
   import * as THREE from 'three';
@@ -16,7 +16,7 @@
   import { uiStore } from '../stores/ui.svelte';
   import { PART_BY_ID, CATS, analyze, validate, type Part } from '../data/spacecraft';
   import { buildPart, assemble } from '../data/spacecraft-geometry';
-  import { customToPart, type Design } from '../data/design-schema';
+  import { customToPart, SENTINEL, type Design } from '../data/design-parts';
 
   const EXAMPLES = [
     'Spots wildfires in their first ten minutes over the western US',
@@ -26,14 +26,22 @@
     'A 6U cubesat a university could actually afford to fly',
   ];
 
+  type Tab = 'summary' | 'subsystems' | 'checks' | 'bom';
+
   let brief = $state('');
+  let refine = $state('');
   let busy = $state(false);
   let error = $state<string | null>(null);
   let design = $state<Design | null>(null);
   let dropped = $state(0);
   let elapsed = $state(0);
+  let streamLog = $state('');
   let explode = $state(0);
+  let deploy = $state(1);
   let selected = $state<string | null>(null);
+  let hovered = $state<string | null>(null);
+  let tab = $state<Tab>('summary');
+  let dims = $state<[number, number, number] | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
 
   /**
@@ -55,20 +63,41 @@
   const generatedIds = $derived(new Set((design?.customParts || []).map((c) => c.id)));
   const budget = $derived(parts.length ? analyze(parts) : null);
   const warnings = $derived(budget ? validate(parts, budget) : []);
+  const errCount = $derived(warnings.filter((w) => w[0] === 'error').length);
   const grouped = $derived.by(() => {
     const g: Record<string, Part[]> = {};
     for (const p of parts) (g[p.cat] ||= []).push(p);
     return g;
   });
   const sel = $derived(selected ? parts.find((p) => p.id === selected) || null : null);
+  const hov = $derived(hovered ? parts.find((p) => p.id === hovered) || null : null);
 
-  async function generate() {
-    const text = brief.trim();
-    if (!text || busy) return;
+  /** Mass and power split by subsystem, largest first — where the budget actually goes. */
+  const breakdown = $derived.by(() => {
+    const rows = Object.entries(grouped).map(([cat, ps]) => ({
+      cat,
+      mass: ps.reduce((a, p) => a + (p.mass || 0), 0),
+      load: ps.reduce((a, p) => a + (p.power < 0 ? -p.power : 0), 0),
+      gen: ps.reduce((a, p) => a + (p.power > 0 ? p.power : 0), 0),
+      n: ps.length,
+    }));
+    const maxMass = Math.max(1, ...rows.map((r) => r.mass));
+    const maxPow = Math.max(1, ...rows.map((r) => Math.max(r.load, r.gen)));
+    return { rows: rows.sort((a, b) => b.mass - a.mass), maxMass, maxPow };
+  });
+
+  async function generate(instruction?: string) {
+    const base = brief.trim();
+    if (!base || busy) return;
     busy = true;
     error = null;
-    design = null;
+    streamLog = '';
+    if (!instruction) {
+      design = null;
+      dims = null;
+    }
     selected = null;
+    hovered = null;
     explode = 0;
     elapsed = 0;
     const t0 = Date.now();
@@ -77,18 +106,43 @@
       const res = await fetch('/api/design', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ prompt: text }),
+        body: JSON.stringify({
+          prompt: base,
+          ...(instruction && design ? { previous: design, instruction } : {}),
+        }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status})`);
+      if (!res.ok || !res.body) {
+        const t = await res.text().catch(() => '');
+        throw new Error(t.slice(0, 200) || `Request failed (${res.status})`);
+      }
+
+      // Everything before the NUL sentinel is display-only model text; the
+      // server-validated payload follows it.
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const i = buf.indexOf(SENTINEL);
+        streamLog = (i === -1 ? buf : buf.slice(0, i)).slice(-2200);
+      }
+      const i = buf.indexOf(SENTINEL);
+      if (i === -1) throw new Error('The stream ended before the design was verified.');
+      const data = JSON.parse(buf.slice(i + SENTINEL.length));
+      if (data.error) throw new Error(data.error);
       design = data.design as Design;
       dropped = data.dropped || 0;
+      refine = '';
+      tab = 'summary';
     } catch (e) {
       error = e instanceof Error ? e.message : 'Generation failed.';
     } finally {
       if (timer) clearInterval(timer);
       timer = null;
       busy = false;
+      streamLog = '';
     }
   }
 
@@ -103,6 +157,11 @@
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     el.appendChild(renderer.domElement);
     renderer.domElement.style.display = 'block';
+    // setSize(w, h, false) updates the drawing buffer but NOT the CSS size, so
+    // without this the canvas lays out at buffer size — devicePixelRatio times
+    // too large on any retina display, spilling out of the window.
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
     renderer.domElement.style.cursor = 'grab';
 
     scene.add(new THREE.AmbientLight(0x4a6a86, 0.55));
@@ -113,14 +172,21 @@
     rim.position.set(-7, -3, -6);
     scene.add(rim);
 
+    // One-metre reference grid, so the vehicle has a sense of scale.
+    const grid = new THREE.GridHelper(20, 20, 0x2b4256, 0x1b2b38);
+    (grid.material as any).transparent = true;
+    (grid.material as any).opacity = 0.4;
+    scene.add(grid);
+
     const model = new THREE.Group();
     scene.add(model);
 
     S = {
-      scene, camera, renderer, model, el,
+      scene, camera, renderer, model, el, grid,
       theta: 0.75, phi: 1.12, dist: 10, fit: 10, scaleRef: 1,
-      explode: 0, explodeTarget: 0, dragging: false,
+      explode: 0, explodeTarget: 0, deploy: 1, deployTarget: 1, dragging: false, moved: false,
       autorot: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      ray: new THREE.Raycaster(), ptr: new THREE.Vector2(),
     };
 
     const resize = () => {
@@ -134,31 +200,57 @@
     S.ro = new ResizeObserver(resize);
     S.ro.observe(el);
 
+    const pick = (e: PointerEvent): string | null => {
+      const r = renderer.domElement.getBoundingClientRect();
+      S.ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      S.ray.setFromCamera(S.ptr, camera);
+      const hit = S.ray.intersectObjects(model.children, true)[0];
+      if (!hit) return null;
+      let o: any = hit.object;
+      while (o && !o.userData?.partId) o = o.parent;
+      return o?.userData?.partId ?? null;
+    };
+
     let lx = 0, ly = 0;
     const down = (e: PointerEvent) => {
-      S.dragging = true; S.autorot = false; lx = e.clientX; ly = e.clientY;
+      S.dragging = true; S.moved = false; S.autorot = false; lx = e.clientX; ly = e.clientY;
       renderer.domElement.style.cursor = 'grabbing';
     };
     const move = (e: PointerEvent) => {
-      if (!S.dragging) return;
+      if (!S.dragging) {
+        if (e.target === renderer.domElement) hovered = pick(e);
+        return;
+      }
+      if (Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 3) S.moved = true;
       S.theta -= (e.clientX - lx) * 0.006;
       S.phi = Math.max(0.12, Math.min(3.0, S.phi - (e.clientY - ly) * 0.006));
       lx = e.clientX; ly = e.clientY;
     };
-    const up = () => { S.dragging = false; renderer.domElement.style.cursor = 'grab'; };
+    const up = (e: PointerEvent) => {
+      // A click that never moved is a selection, not a camera drag.
+      if (S.dragging && !S.moved && e.target === renderer.domElement) {
+        const id = pick(e);
+        selected = id && selected !== id ? id : null;
+      }
+      S.dragging = false;
+      renderer.domElement.style.cursor = 'grab';
+    };
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
-      S.dist = Math.max(S.fit * 0.35, Math.min(S.fit * 3.2, S.dist * (1 + e.deltaY * 0.0012)));
+      S.dist = Math.max(S.fit * 0.25, Math.min(S.fit * 3.2, S.dist * (1 + e.deltaY * 0.0012)));
     };
+    const leave = () => (hovered = null);
     renderer.domElement.addEventListener('pointerdown', down);
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     renderer.domElement.addEventListener('wheel', wheel, { passive: false });
+    renderer.domElement.addEventListener('pointerleave', leave);
     S.cleanup = () => {
       renderer.domElement.removeEventListener('pointerdown', down);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       renderer.domElement.removeEventListener('wheel', wheel);
+      renderer.domElement.removeEventListener('pointerleave', leave);
     };
 
     const clock = new THREE.Clock();
@@ -166,14 +258,17 @@
       S.raf = requestAnimationFrame(tick);
       const dt = clock.getDelta();
       if (S.autorot) S.theta += dt * 0.14;
-      const et = S.explodeTarget || 0;
-      S.explode += (et - S.explode) * Math.min(1, dt * 7);
-      if (!Number.isFinite(S.explode)) S.explode = et;
+      S.explode += ((S.explodeTarget || 0) - S.explode) * Math.min(1, dt * 7);
+      S.deploy += ((S.deployTarget ?? 1) - S.deploy) * Math.min(1, dt * 3.5);
+      if (!Number.isFinite(S.explode)) S.explode = S.explodeTarget || 0;
+      if (!Number.isFinite(S.deploy)) S.deploy = S.deployTarget ?? 1;
       for (const p of model.children) {
         const u: any = p.userData;
         if (!u.base) continue;
         const k = S.explode * (0.55 + u.rank * 0.42) * S.scaleRef;
         p.position.set(u.base.x + u.dir.x * k, u.base.y + u.dir.y * k, u.base.z + u.dir.z * k);
+        // Deployables retract along their long axis when stowed.
+        if (u.deployable) p.scale.x = 0.05 + 0.95 * S.deploy;
       }
       camera.position.set(
         S.dist * Math.sin(S.phi) * Math.sin(S.theta),
@@ -195,7 +290,7 @@
         if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m: any) => m.dispose());
       });
     }
-    if (!list.length) return;
+    if (!list.length) { dims = null; return; }
     const { placed, bg } = assemble(list);
     for (const pl of placed) {
       const g = buildPart(pl.part, bg);
@@ -203,21 +298,27 @@
       g.userData = {
         partId: pl.part.id, base: pl.pos.clone(),
         dir: new THREE.Vector3(pl.dir[0], pl.dir[1], pl.dir[2]), rank: pl.rank,
+        deployable: (pl.part.geom as any)?.kind === 'wing',
       };
       S.model.add(g);
     }
-    const size = new THREE.Box3().setFromObject(S.model).getSize(new THREE.Vector3());
+    const box = new THREE.Box3().setFromObject(S.model);
+    const size = box.getSize(new THREE.Vector3());
+    dims = [size.x, size.y, size.z];
     const span = Math.max(size.x, size.y, size.z) || 3;
     S.scaleRef = Math.max(0.9, span * 0.16);
-    S.fit = span * 1.5;
+    S.fit = span * 1.6;
     S.dist = S.fit;
+    S.grid.scale.setScalar(Math.max(0.25, span / 20));
+    S.grid.position.y = -size.y / 2 - 0.4;
   }
 
   $effect(() => { if (host && !S) init(host); });
   $effect(() => { const list = parts; if (S) rebuild(list); });
   $effect(() => { if (S) S.explodeTarget = explode; });
+  $effect(() => { if (S) S.deployTarget = deploy; });
   $effect(() => {
-    const id = selected;
+    const id = selected ?? hovered;
     if (!S) return;
     for (const g of S.model.children) {
       const on = !id || g.userData.partId === id;
@@ -225,7 +326,7 @@
         if (!o.material) return;
         for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
           if (m.userData.origOp === undefined) m.userData.origOp = m.opacity;
-          m.opacity = on ? m.userData.origOp : m.userData.origOp * 0.22;
+          m.opacity = on ? m.userData.origOp : m.userData.origOp * 0.18;
           m.transparent = m.opacity < 1;
         }
       });
@@ -266,8 +367,8 @@
           onkeydown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generate(); }}
         ></textarea>
         <div class="row">
-          <button class="go" onclick={generate} disabled={busy || !brief.trim()}>
-            {busy ? `Designing… ${elapsed.toFixed(1)}s` : 'Design it'}
+          <button class="go" onclick={() => generate()} disabled={busy || !brief.trim()}>
+            {busy ? `Designing ${elapsed.toFixed(1)}s` : design ? 'Redesign' : 'Design it'}
           </button>
           <span class="hint">{brief.length}/600 · ⌘↵</span>
         </div>
@@ -280,15 +381,16 @@
         {/if}
       </div>
 
-      {#if error}
-        <p class="err">{error}</p>
-      {/if}
+      {#if error}<p class="err">{error}</p>{/if}
 
       {#if busy}
-        <p class="working">
-          Picking hardware from 84 catalogued components, then closing the mass and power budgets.
-          Typically 20–40 seconds.
-        </p>
+        <div class="stream">
+          <div class="sh">
+            <span class="pulse"></span>
+            <span>Selecting hardware and closing the budgets…</span>
+          </div>
+          <pre>{streamLog || 'Waiting for the first token…'}</pre>
+        </div>
       {/if}
 
       {#if design}
@@ -300,9 +402,18 @@
           <span>{design.missionClass}</span>
           <span>{fmt(design.altKm)} km</span>
           <span>{fmt(design.incDeg, 1)}° incl</span>
+          {#if dims}<span>{fmt(dims[0], 1)} × {fmt(dims[1], 1)} × {fmt(dims[2], 1)} m</span>{/if}
         </div>
 
-        <div class="viewport" bind:this={host}></div>
+        <div class="viewport" bind:this={host}>
+          {#if hov || sel}
+            <div class="tip">
+              <b>{(hov || sel)?.name}</b>
+              <span>{(hov || sel)?.spec}</span>
+            </div>
+          {/if}
+          <div class="vhint">drag to orbit · scroll to zoom · click a part</div>
+        </div>
 
         <div class="ctrl">
           <Slider
@@ -310,69 +421,112 @@
             value={explode} display={Math.round(explode * 100) + '%'}
             oninput={(e: Event) => (explode = +(e.currentTarget as HTMLInputElement).value)}
           />
+          <Slider
+            label="Deployment" min={0} max={1} step={0.01}
+            value={deploy} display={deploy > 0.98 ? 'deployed' : deploy < 0.02 ? 'stowed' : Math.round(deploy * 100) + '%'}
+            oninput={(e: Event) => (deploy = +(e.currentTarget as HTMLInputElement).value)}
+          />
         </div>
 
-        <p class="blurb">{design.blurb}</p>
-
-        {#if budget}
-          <div class="grid">
-            <div class="cell"><span class="lbl">Launch mass</span><b>{fmt(budget.mass)} kg</b></div>
-            <div class="cell"><span class="lbl">Generation</span><b>{fmt(budget.gen)} W</b></div>
-            <div class="cell">
-              <span class="lbl">Power margin</span>
-              <b class:bad={budget.margin < 0}>{budget.margin >= 0 ? '+' : ''}{fmt(budget.margin)} W</b>
-            </div>
-            <div class="cell"><span class="lbl">Delta-v</span><b>{fmt(budget.dv)} m/s</b></div>
-          </div>
-        {/if}
-
-        {#if warnings.length}
-          <div class="warns">
-            {#each warnings as [sev, title, detail]}
-              <div class="warn {sev}"><b>{title}</b><span>{detail}</span></div>
-            {/each}
-          </div>
-        {/if}
-
-        <div class="rationale">
-          <span class="rl">Design rationale</span>
-          <p>{design.rationale}</p>
-        </div>
-
-        {#if dropped > 0}
-          <p class="note">{dropped} referenced component{dropped === 1 ? '' : 's'} did not exist and {dropped === 1 ? 'was' : 'were'} dropped.</p>
-        {/if}
-
-        {#if sel}
-          <div class="detail">
-            <div class="dh">
-              <span class="cat">{sel.cat}</span><b>{sel.name}</b>
-              {#if generatedIds.has(sel.id)}<span class="gen">generated</span>{/if}
-            </div>
-            <p>{sel.note}</p>
-            <div class="dm">
-              <span>{fmt(sel.mass, sel.mass < 10 ? 1 : 0)} kg</span>
-              <span>{sel.power > 0 ? '+' : ''}{fmt(sel.power)} W</span>
-              <span>{sel.spec}</span>
-            </div>
-          </div>
-        {/if}
-
-        <div class="bom">
-          {#each CATS.filter((c) => grouped[c]) as cat}
-            <div class="cat-row"><span class="cn">{cat}</span></div>
-            {#each grouped[cat] as p}
-              <button
-                class="part"
-                class:on={selected === p.id}
-                onclick={() => (selected = selected === p.id ? null : p.id)}
-              >
-                <span class="pn">{p.name}</span>
-                {#if generatedIds.has(p.id)}<span class="dot" title="Generated for this design"></span>{/if}
-                <span class="pm">{fmt(p.mass, p.mass < 10 ? 1 : 0)} kg</span>
-              </button>
-            {/each}
+        <div class="tabs">
+          {#each [['summary', 'Summary'], ['subsystems', 'Subsystems'], ['checks', `Checks${errCount ? ' ' + errCount : ''}`], ['bom', `Parts ${parts.length}`]] as [id, label]}
+            <button class="tab" class:on={tab === id} class:alert={id === 'checks' && errCount > 0} onclick={() => (tab = id as Tab)}>{label}</button>
           {/each}
+        </div>
+
+        {#if tab === 'summary'}
+          <p class="blurb">{design.blurb}</p>
+          {#if budget}
+            <div class="grid">
+              <div class="cell"><span class="lbl">Launch mass</span><b>{fmt(budget.mass)} kg</b></div>
+              <div class="cell"><span class="lbl">Generation</span><b>{fmt(budget.gen)} W</b></div>
+              <div class="cell">
+                <span class="lbl">Power margin</span>
+                <b class:bad={budget.margin < 0}>{budget.margin >= 0 ? '+' : ''}{fmt(budget.margin)} W</b>
+              </div>
+              <div class="cell"><span class="lbl">Delta-v</span><b>{fmt(budget.dv)} m/s</b></div>
+              <div class="cell"><span class="lbl">Downlink</span><b>{budget.down ? fmt(budget.down) + ' Mbps' : '—'}</b></div>
+              <div class="cell"><span class="lbl">Per Falcon 9</span><b>{budget.perF9 || '—'}</b></div>
+            </div>
+          {/if}
+          <div class="rationale">
+            <span class="rl">Design rationale</span>
+            <p>{design.rationale}</p>
+          </div>
+          {#if dropped > 0}
+            <p class="note">{dropped} referenced component{dropped === 1 ? '' : 's'} did not exist and {dropped === 1 ? 'was' : 'were'} dropped.</p>
+          {/if}
+        {:else if tab === 'subsystems'}
+          <div class="bars">
+            {#each breakdown.rows as r}
+              <div class="brow">
+                <span class="bc">{r.cat}</span>
+                <div class="btrack"><div class="bfill mass" style="width:{(r.mass / breakdown.maxMass) * 100}%"></div></div>
+                <span class="bv">{fmt(r.mass, r.mass < 10 ? 1 : 0)} kg</span>
+              </div>
+              <div class="brow">
+                <span class="bc dim">{r.gen > 0 ? 'generates' : 'draws'}</span>
+                <div class="btrack">
+                  <div class="bfill" class:gen={r.gen > 0} style="width:{(Math.max(r.gen, r.load) / breakdown.maxPow) * 100}%"></div>
+                </div>
+                <span class="bv">{fmt(Math.max(r.gen, r.load))} W</span>
+              </div>
+            {/each}
+          </div>
+        {:else if tab === 'checks'}
+          {#if warnings.length}
+            <div class="warns">
+              {#each warnings as [sev, title, detail]}
+                <div class="warn {sev}"><b>{title}</b><span>{detail}</span></div>
+              {/each}
+            </div>
+          {:else}
+            <p class="clean">Every check passes. Power closes, the bus carries the mass, and the subsystems it needs are present.</p>
+          {/if}
+        {:else}
+          {#if sel}
+            <div class="detail">
+              <div class="dh">
+                <span class="cat">{sel.cat}</span><b>{sel.name}</b>
+                {#if generatedIds.has(sel.id)}<span class="gen">generated</span>{/if}
+              </div>
+              <p>{sel.note}</p>
+              <div class="dm">
+                <span>{fmt(sel.mass, sel.mass < 10 ? 1 : 0)} kg</span>
+                <span>{sel.power > 0 ? '+' : ''}{fmt(sel.power)} W</span>
+                <span>{sel.spec}</span>
+              </div>
+            </div>
+          {/if}
+          <div class="bom">
+            {#each CATS.filter((c) => grouped[c]) as cat}
+              <div class="cat-row"><span class="cn">{cat}</span></div>
+              {#each grouped[cat] as p}
+                <button
+                  class="part"
+                  class:on={selected === p.id}
+                  onmouseenter={() => (hovered = p.id)}
+                  onmouseleave={() => (hovered = null)}
+                  onclick={() => (selected = selected === p.id ? null : p.id)}
+                >
+                  <span class="pn">{p.name}</span>
+                  {#if generatedIds.has(p.id)}<span class="dot" title="Generated for this design"></span>{/if}
+                  <span class="pm">{fmt(p.mass, p.mass < 10 ? 1 : 0)} kg</span>
+                </button>
+              {/each}
+            {/each}
+          </div>
+        {/if}
+
+        <div class="refine">
+          <input
+            bind:value={refine}
+            placeholder="Revise it — “halve the mass”, “add laser crosslinks”"
+            maxlength="200"
+            disabled={busy}
+            onkeydown={(e) => { if (e.key === 'Enter' && refine.trim()) generate(refine.trim()); }}
+          />
+          <button class="rgo" disabled={busy || !refine.trim()} onclick={() => generate(refine.trim())}>Revise</button>
         </div>
       {/if}
     </div>
@@ -380,12 +534,11 @@
 {/if}
 
 <style>
-  .dz { width: 340px; max-height: 70vh; overflow-y: auto; }
+  .dz { width: 420px; max-height: 76vh; overflow-y: auto; }
   .brief { padding: 8px; border-bottom: 1px solid var(--border); }
   textarea {
     width: 100%; resize: vertical; background: var(--card-bg); color: var(--text);
-    border: 1px solid var(--border); font: inherit; font-size: 11px; padding: 6px;
-    line-height: 1.45;
+    border: 1px solid var(--border); font: inherit; font-size: 11px; padding: 6px; line-height: 1.45;
   }
   textarea:focus { outline: none; border-color: var(--accent); }
   .row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; gap: 8px; }
@@ -402,40 +555,91 @@
     font: inherit; font-size: 9.5px; padding: 3px 6px; cursor: pointer; text-align: left;
   }
   .chip:hover { border-color: var(--accent); color: var(--text); }
-  .err { padding: 8px; color: var(--danger); font-size: 10.5px; }
-  .working { padding: 8px; color: var(--text-dim); font-size: 10.5px; line-height: 1.5; }
+  .err { padding: 8px; color: var(--danger); font-size: 10.5px; line-height: 1.5; }
+
+  .stream { padding: 8px; border-bottom: 1px solid var(--border); }
+  .sh { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-dim); margin-bottom: 5px; }
+  .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+  .stream pre {
+    margin: 0; max-height: 120px; overflow: hidden; font-size: 9px; line-height: 1.4;
+    color: var(--text-ghost); white-space: pre-wrap; word-break: break-all;
+    background: var(--card-bg); padding: 6px; border: 1px solid var(--border);
+  }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none; opacity: .7; } }
+
   .head { display: flex; align-items: baseline; gap: 8px; padding: 8px 8px 2px; }
-  .head b { font-size: 13px; }
+  .head b { font-size: 14px; }
   .op { font-size: 10px; color: var(--text-dim); }
-  .sub { display: flex; gap: 10px; padding: 0 8px 8px; font-size: 9.5px; color: var(--text-ghost); text-transform: uppercase; letter-spacing: .08em; }
-  .viewport { height: 230px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .ctrl { padding: 6px 8px; }
-  .blurb { padding: 4px 8px 8px; font-size: 10.5px; line-height: 1.5; color: var(--text-dim); }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--border); }
+  .sub { display: flex; gap: 10px; flex-wrap: wrap; padding: 0 8px 8px; font-size: 9.5px; color: var(--text-ghost); text-transform: uppercase; letter-spacing: .08em; }
+
+  .viewport {
+    height: 300px; position: relative; overflow: hidden;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    background: var(--card-bg);
+  }
+  .tip {
+    position: absolute; top: 6px; left: 6px; z-index: 2; pointer-events: none;
+    background: color-mix(in srgb, var(--bg) 82%, transparent); border: 1px solid var(--border);
+    padding: 4px 7px; max-width: 78%;
+  }
+  .tip b { display: block; font-size: 10.5px; }
+  .tip span { font-size: 9px; color: var(--text-dim); }
+  .vhint { position: absolute; bottom: 5px; right: 7px; z-index: 2; pointer-events: none; font-size: 8.5px; color: var(--text-ghost); }
+  .ctrl { padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+
+  .tabs { display: flex; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .tab {
+    flex: 1; background: none; border: none; border-right: 1px solid var(--border);
+    color: var(--text-ghost); font: inherit; font-size: 9px; text-transform: uppercase;
+    letter-spacing: .09em; padding: 6px 2px; cursor: pointer;
+  }
+  .tab:last-child { border-right: none; }
+  .tab:hover { color: var(--text); }
+  .tab.on { color: var(--accent); background: var(--card-bg); }
+  .tab.alert { color: var(--danger); }
+
+  .blurb { padding: 8px; font-size: 10.5px; line-height: 1.55; color: var(--text-dim); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; border-top: 1px solid var(--border); }
   .cell { padding: 6px 8px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .cell .lbl { display: block; font-size: 8.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-ghost); }
-  .cell b { font-size: 13px; }
+  .cell b { font-size: 12.5px; }
   .cell b.bad { color: var(--danger); }
-  .warns { padding: 6px 8px; display: flex; flex-direction: column; gap: 5px; }
-  .warn { font-size: 10px; line-height: 1.45; border-left: 2px solid var(--border); padding-left: 6px; }
+
+  .bars { padding: 8px; display: flex; flex-direction: column; gap: 3px; }
+  .brow { display: grid; grid-template-columns: 88px 1fr 62px; align-items: center; gap: 7px; font-size: 9.5px; }
+  .bc { text-transform: uppercase; letter-spacing: .06em; font-size: 8.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bc.dim { color: var(--text-ghost); text-transform: none; letter-spacing: 0; padding-left: 6px; }
+  .btrack { height: 7px; background: var(--card-bg); border: 1px solid var(--border); }
+  .bfill { height: 100%; background: var(--text-dim); }
+  .bfill.mass { background: var(--accent); }
+  .bfill.gen { background: var(--live, #4ec07a); }
+  .bv { text-align: right; color: var(--text-ghost); }
+
+  .warns { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .warn { font-size: 10px; line-height: 1.45; border-left: 2px solid var(--border); padding-left: 7px; }
   .warn b { display: block; }
   .warn span { color: var(--text-dim); }
   .warn.error { border-left-color: var(--danger); }
   .warn.error b { color: var(--danger); }
   .warn.warn { border-left-color: var(--warning); }
   .warn.warn b { color: var(--warning); }
-  .rationale { padding: 6px 8px 8px; }
+  .clean { padding: 10px 8px; font-size: 10.5px; line-height: 1.5; color: var(--text-dim); }
+
+  .rationale { padding: 6px 8px 8px; border-top: 1px solid var(--border); }
   .rl { font-size: 8.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-ghost); }
-  .rationale p { font-size: 10.5px; line-height: 1.5; color: var(--text-dim); margin-top: 3px; }
+  .rationale p { font-size: 10.5px; line-height: 1.55; color: var(--text-dim); margin-top: 3px; }
   .note { padding: 0 8px 8px; font-size: 9.5px; color: var(--warning); }
-  .detail { padding: 7px 8px; border-top: 1px solid var(--border); background: var(--card-bg); }
+
+  .detail { padding: 7px 8px; background: var(--card-bg); border-bottom: 1px solid var(--border); }
   .dh { display: flex; align-items: baseline; gap: 6px; }
   .cat { font-size: 8.5px; color: var(--text-ghost); letter-spacing: .1em; }
   .gen { font-size: 8.5px; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
   .detail p { font-size: 10.5px; line-height: 1.5; color: var(--text-dim); margin: 4px 0; }
   .dm { display: flex; gap: 10px; font-size: 9.5px; color: var(--text-ghost); flex-wrap: wrap; }
-  .bom { border-top: 1px solid var(--border); }
-  .cat-row { padding: 5px 8px 2px; }
+
+  .bom { padding-bottom: 4px; }
+  .cat-row { padding: 6px 8px 2px; }
   .cn { font-size: 8.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-ghost); }
   .part {
     display: flex; align-items: center; gap: 6px; width: 100%; background: none;
@@ -446,4 +650,18 @@
   .pn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pm { color: var(--text-ghost); font-size: 9.5px; }
   .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
+
+  .refine { display: flex; gap: 5px; padding: 7px 8px; border-top: 1px solid var(--border); }
+  .refine input {
+    flex: 1; min-width: 0; background: var(--card-bg); color: var(--text);
+    border: 1px solid var(--border); font: inherit; font-size: 10px; padding: 4px 6px;
+  }
+  .refine input:focus { outline: none; border-color: var(--accent); }
+  .rgo {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    font: inherit; font-size: 9px; text-transform: uppercase; letter-spacing: .09em;
+    padding: 4px 9px; cursor: pointer;
+  }
+  .rgo:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+  .rgo:disabled { opacity: .4; cursor: default; }
 </style>

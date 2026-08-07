@@ -50,6 +50,11 @@
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     el.appendChild(renderer.domElement);
     renderer.domElement.style.display = 'block';
+    // setSize(w, h, false) updates the drawing buffer but NOT the CSS size, so
+    // without this the canvas lays out at buffer size — devicePixelRatio times
+    // too large on any retina display.
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
     renderer.domElement.style.cursor = 'grab';
 
     scene.add(new THREE.AmbientLight(0x4a6a86, 0.55));

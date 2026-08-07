@@ -14,12 +14,13 @@
  * We ask for JSON and validate the parse with the same zod schema instead, so
  * nothing reaches the client unvalidated.
  */
-import { generateText } from 'ai';
-import { DesignSchema, GEOM_KINDS, GEOM_MATS, PART_CATS, PART_DIRS, PART_SLOTS } from '../src/data/design-schema.js';
+import { streamText } from 'ai';
+import { DesignSchema, SENTINEL, GEOM_KINDS, GEOM_MATS, PART_CATS, PART_DIRS, PART_SLOTS } from '../src/data/design-schema.js';
 import { PARTS } from '../src/data/spacecraft.js';
 
 const MODEL = 'anthropic/claude-sonnet-4.6';
 const MAX_PROMPT_CHARS = 600;
+const MAX_INSTRUCTION_CHARS = 200;
 
 const CATALOGUE = PARTS.map(
   (p) => `${p.id}|${p.cat}|${p.name}|${p.mass}kg|${p.power > 0 ? '+' : ''}${p.power}W|${p.slot}|${p.spec}`
@@ -88,9 +89,13 @@ export default {
     if (request.method !== 'POST') return json({ error: 'Use POST.' }, 405);
 
     let prompt = '';
+    let instruction = '';
+    let previous: unknown = null;
     try {
-      const body = (await request.json()) as { prompt?: unknown };
+      const body = (await request.json()) as { prompt?: unknown; instruction?: unknown; previous?: unknown };
       prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+      instruction = typeof body.instruction === 'string' ? body.instruction.trim().slice(0, MAX_INSTRUCTION_CHARS) : '';
+      previous = body.previous ?? null;
     } catch {
       return json({ error: 'Body must be JSON.' }, 400);
     }
@@ -100,31 +105,85 @@ export default {
       return json({ error: `Keep the brief under ${MAX_PROMPT_CHARS} characters.` }, 400);
     }
 
-    try {
-      const { text } = await generateText({
-        model: MODEL,
-        system: SYSTEM,
-        prompt: `Design a satellite for this mission:\n\n${prompt}`,
-        maxOutputTokens: 4000,
-      });
-
-      const parsed = DesignSchema.safeParse(extractJson(text));
-      if (!parsed.success) {
-        return json(
-          { error: 'The design came back malformed. Try rewording the brief.', issues: parsed.error.issues.slice(0, 5) },
-          502
-        );
-      }
-
-      // Drop hallucinated catalogue ids rather than letting the client render holes.
-      const known = new Set(PARTS.map((p) => p.id));
-      const libraryParts = parsed.data.libraryParts.filter((id) => known.has(id));
-      const dropped = parsed.data.libraryParts.length - libraryParts.length;
-
-      return json({ design: { ...parsed.data, libraryParts }, dropped });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Generation failed.';
-      return json({ error: message.slice(0, 300) }, 502);
+    /**
+     * A revision carries the previous design back in, so "halve the mass" is a
+     * change to a specific vehicle rather than a fresh roll of the dice. Only
+     * the fields that define the configuration go back — prose would just crowd
+     * the context and get rewritten anyway.
+     */
+    let userPrompt = `Design a satellite for this mission:\n\n${prompt}`;
+    if (instruction && previous && typeof previous === 'object') {
+      const p = previous as Record<string, unknown>;
+      const prior = {
+        name: p.name, altKm: p.altKm, incDeg: p.incDeg,
+        libraryParts: p.libraryParts, customParts: p.customParts,
+      };
+      userPrompt =
+        `Mission: ${prompt}\n\nHere is the current design:\n${JSON.stringify(prior)}\n\n` +
+        `Revise it as follows: ${instruction}\n\n` +
+        `Keep everything the revision does not touch. Return the complete revised design, ` +
+        `and say in the rationale what the change cost.`;
     }
+
+    /**
+     * Streamed, but still server-validated.
+     *
+     * The raw model text goes down the wire as it arrives so the client can
+     * show the design being written — a 35s spinner reads as broken, a 35s
+     * live feed reads as work. Validation still happens here, and the result
+     * is appended after a NUL sentinel: everything before it is display-only
+     * text, everything after is the checked payload the client actually uses.
+     * That keeps zod out of the browser bundle without trusting the stream.
+     */
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const finish = (payload: unknown) => {
+          controller.enqueue(encoder.encode(SENTINEL + JSON.stringify(payload)));
+          controller.close();
+        };
+        try {
+          const result = streamText({
+            model: MODEL,
+            system: SYSTEM,
+            prompt: userPrompt,
+            maxOutputTokens: 4000,
+          });
+
+          let full = '';
+          for await (const delta of result.textStream) {
+            full += delta;
+            controller.enqueue(encoder.encode(delta));
+          }
+
+          const parsed = DesignSchema.safeParse(extractJson(full));
+          if (!parsed.success) {
+            return finish({
+              error: 'The design came back malformed. Try rewording the brief.',
+              issues: parsed.error.issues.slice(0, 5),
+            });
+          }
+
+          // Drop hallucinated catalogue ids rather than letting the client render holes.
+          const known = new Set(PARTS.map((p) => p.id));
+          const libraryParts = parsed.data.libraryParts.filter((id) => known.has(id));
+          finish({
+            design: { ...parsed.data, libraryParts },
+            dropped: parsed.data.libraryParts.length - libraryParts.length,
+          });
+        } catch (err) {
+          finish({ error: (err instanceof Error ? err.message : 'Generation failed.').slice(0, 300) });
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'cache-control': 'no-store',
+        // Proxies that buffer would defeat the point of streaming at all.
+        'x-content-type-options': 'nosniff',
+      },
+    });
   },
 };

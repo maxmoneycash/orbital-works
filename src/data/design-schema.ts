@@ -1,40 +1,32 @@
 /**
- * Schema for AI-generated spacecraft designs.
+ * Zod validation for AI-generated spacecraft designs. Server-only.
+ *
+ * The shared vocabulary — enums, geometry repair, the Part conversion — lives in
+ * design-parts.ts so the browser can use it without pulling zod into the client
+ * bundle. This file is the checking layer the serverless function runs before
+ * anything reaches a renderer.
  *
  * The model never writes three.js. It emits a parts list in exactly the shape
- * the hand-authored fleet already uses, so `assemble()` and `buildPart()` render
- * it with no special casing, and `analyze()` / `validate()` grade it against the
- * same rules as the real vehicles.
+ * the hand-authored fleet already uses, so assemble() and buildPart() render it
+ * with no special casing, and analyze() / validate() grade it against the same
+ * rules as the real vehicles.
  *
  * Two escape hatches, deliberately in this order:
- *  - `libraryParts` reuses the 84 catalogued components. Preferred: real masses,
+ *  - libraryParts reuses the 84 catalogued components. Preferred: real masses,
  *    real power draws, real specs.
- *  - `customParts` invents hardware the catalogue lacks, but only out of the 15
+ *  - customParts invents hardware the catalogue lacks, but only out of the 15
  *    geometry primitives the renderer understands. A design can be novel without
  *    being unrenderable.
- *
- * Framework-free — no THREE, no DOM. The serverless function imports this too.
  */
 import { z } from 'zod';
+import { GEOM_KINDS, GEOM_MATS, PART_CATS, PART_DIRS, PART_SLOTS } from './design-parts.js';
 
-export const GEOM_KINDS = [
-  'plate', 'box', 'wing', 'panel', 'tiles', 'dish', 'cylinder',
-  'thruster', 'wheels', 'tracker', 'laser', 'telescope', 'patch',
-  'whip', 'blanket',
-] as const;
-
-export const GEOM_MATS = ['shell', 'dark', 'solar', 'gold', 'copper', 'white'] as const;
-export const PART_SLOTS = ['core', 'nadir', 'zenith', 'aft', 'wing', 'shell'] as const;
-export const PART_DIRS = ['up', 'down', 'fore', 'aft', 'none'] as const;
-export const PART_CATS = [
-  'STRUCTURE', 'POWER', 'PROPULSION', 'ATTITUDE', 'AVIONICS', 'PAYLOAD',
-  'USER LINK', 'BACKHAUL', 'OPTICAL', 'THERMAL', 'BRIGHTNESS',
-] as const;
+export * from './design-parts.js';
 
 /**
  * One flat bag of dimensions rather than a 15-way discriminated union. Models
  * handle a wide-but-shallow schema far more reliably than a deep one, and
- * `repairGeom` below backfills whatever is missing per kind.
+ * repairGeom backfills whatever is missing per kind.
  */
 export const GeomSchema = z.object({
   kind: z.enum(GEOM_KINDS).describe('Which renderer primitive draws this part.'),
@@ -88,84 +80,3 @@ export const DesignSchema = z.object({
   libraryParts: z.array(z.string()).describe('Ids reused from the component catalogue. Prefer these; they carry real masses and specs.'),
   customParts: z.array(CustomPartSchema).describe('Hardware the catalogue lacks. Leave empty if the catalogue covers the mission.'),
 });
-
-export type Design = z.infer<typeof DesignSchema>;
-export type CustomPart = z.infer<typeof CustomPartSchema>;
-export type Geom = z.infer<typeof GeomSchema>;
-
-/** Sensible dimensions per primitive, used to backfill whatever the model omitted. */
-const GEOM_DEFAULTS: Record<string, Record<string, unknown>> = {
-  plate:     { w: 2.8, d: 1.9, t: 0.18, mat: 'shell' },
-  box:       { w: 0.5, h: 0.3, d: 0.4, mat: 'shell' },
-  wing:      { len: 6, panels: 4, wid: 1.4, sides: 1 },
-  panel:     { w: 1.2, d: 0.9, mat: 'solar' },
-  tiles:     { w: 1.6, d: 1.1, rows: 4, cols: 6 },
-  dish:      { r: 0.5, count: 1 },
-  cylinder:  { r: 0.25, h: 0.6, mat: 'shell' },
-  thruster:  { r: 0.09, h: 0.22, count: 1 },
-  wheels:    { r: 0.13, h: 0.09, count: 4 },
-  tracker:   { r: 0.07, h: 0.28, count: 2 },
-  laser:     { r: 0.11, count: 3 },
-  telescope: { r: 0.35, len: 1.6 },
-  patch:     { w: 0.4, d: 0.4, mat: 'copper' },
-  whip:      { len: 0.9 },
-  blanket:   { mat: 'gold' },
-};
-
-/**
- * Fill in the fields a primitive needs but the model left out.
- *
- * Without this a `wing` missing `panels` divides by undefined and the mesh
- * comes out NaN — three.js then silently drops the whole part. Better to render
- * a plausible default than a hole in the spacecraft.
- */
-export function repairGeom(geom: Partial<Geom> | undefined | null): Record<string, unknown> {
-  const kind = (geom?.kind && GEOM_KINDS.includes(geom.kind) ? geom.kind : 'box') as string;
-  const out: Record<string, unknown> = { ...GEOM_DEFAULTS[kind], ...(geom || {}), kind };
-
-  // Positive, finite dimensions only — a zero-width panel is invisible, and a
-  // negative one inverts the mesh normals.
-  for (const k of ['w', 'd', 'h', 't', 'r', 'len', 'wid']) {
-    const v = out[k];
-    if (v !== undefined && (typeof v !== 'number' || !isFinite(v) || v <= 0)) {
-      out[k] = GEOM_DEFAULTS[kind]?.[k] ?? 0.3;
-    }
-  }
-  // Counts must be whole and at least one, or the render loops never execute.
-  for (const k of ['rows', 'cols', 'count', 'panels', 'sides']) {
-    const v = out[k];
-    if (v !== undefined) {
-      const n = Math.round(Number(v));
-      out[k] = isFinite(n) && n >= 1 ? Math.min(n, 64) : (GEOM_DEFAULTS[kind]?.[k] ?? 1);
-    }
-  }
-  if (out.mat !== undefined && !GEOM_MATS.includes(out.mat as any)) out.mat = 'shell';
-  return out;
-}
-
-/** Turn a validated custom part into the `Part` shape the renderer consumes. */
-export function customToPart(c: CustomPart, year = new Date().getUTCFullYear()): Record<string, unknown> {
-  return {
-    id: c.id,
-    cat: c.cat,
-    name: c.name,
-    origin: 'Generated design',
-    year,
-    mass: Number.isFinite(c.mass) ? Math.max(0, c.mass) : 0,
-    power: Number.isFinite(c.power) ? c.power : 0,
-    spec: c.spec,
-    note: c.note,
-    dir: c.dir,
-    slot: c.slot,
-    geom: repairGeom(c.geom),
-    ...(c.area !== undefined ? { area: c.area } : {}),
-    ...(c.capacity !== undefined ? { capacity: c.capacity } : {}),
-    ...(c.thrust !== undefined ? { thrust: c.thrust } : {}),
-    ...(c.isp !== undefined ? { isp: c.isp } : {}),
-    ...(c.prop !== undefined ? { prop: c.prop } : {}),
-    ...(c.pointing !== undefined ? { pointing: c.pointing } : {}),
-    ...(c.downlink !== undefined ? { downlink: c.downlink } : {}),
-    ...(c.isl !== undefined ? { isl: c.isl } : {}),
-    ...(c.burst !== undefined ? { burst: c.burst } : {}),
-  };
-}
