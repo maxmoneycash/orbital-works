@@ -19,6 +19,8 @@
   import { buildPart, assemble } from '../data/spacecraft-geometry';
   import { customToPart, SENTINEL, type Design } from '../data/design-parts';
   import { encodeDesign, decodeDesign } from '../data/design-share';
+  import { loadHistory, saveDesign, removeDesign, type HistoryEntry } from '../data/design-history';
+  import { track } from '@vercel/analytics';
 
   const EXAMPLES = [
     'Spots wildfires in their first ten minutes over the western US',
@@ -45,6 +47,7 @@
   let tab = $state<Tab>('summary');
   let dims = $state<[number, number, number] | null>(null);
   let shareLabel = $state('Share');
+  let history = $state<HistoryEntry[]>([]);
   let timer: ReturnType<typeof setInterval> | null = null;
   let shareTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -66,11 +69,33 @@
     }
     design = incoming;
     dropped = 0;
+    history = saveDesign(incoming);
+    track('design_opened_from_link', { mission: incoming.missionClass });
     brief = `${incoming.missionClass} — shared design`;
     tab = 'summary';
     uiStore.designerOpen = true;
     uiStore.designerFocus++;
   }
+
+  function openFromHistory(entry: HistoryEntry) {
+    design = entry.design;
+    dropped = 0;
+    error = null;
+    selected = null;
+    hovered = null;
+    explode = 0;
+    tab = 'summary';
+    brief = `${entry.design.missionClass} — saved design`;
+    track('design_reopened', { mission: entry.design.missionClass });
+  }
+
+  const relTime = (t: number) => {
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.round(m / 60);
+    return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
+  };
 
   async function share() {
     if (!design) return;
@@ -81,10 +106,12 @@
     try {
       if (navigator.share && uiStore.isMobile) {
         await navigator.share({ title: `${design.name} — Orbital Works`, url });
+        track('design_shared', { mission: design.missionClass, via: 'native' });
         return;
       }
       await navigator.clipboard.writeText(url);
       shareLabel = 'Link copied';
+      track('design_shared', { mission: design.missionClass, via: 'clipboard' });
     } catch {
       shareLabel = 'Copy failed';
     }
@@ -190,6 +217,12 @@
       dropped = data.dropped || 0;
       refine = '';
       tab = 'summary';
+      history = saveDesign(design);
+      track('design_generated', {
+        mission: design.missionClass,
+        revision: Boolean(instruction),
+        seconds: Math.round((Date.now() - t0) / 1000),
+      });
     } catch (e) {
       error = e instanceof Error ? e.message : 'Generation failed.';
     } finally {
@@ -372,6 +405,7 @@
   $effect(() => {
     if (urlChecked) return;
     urlChecked = true;
+    history = loadHistory();
     loadFromUrl();
   });
 
@@ -438,6 +472,23 @@
           </div>
         {/if}
       </div>
+
+      {#if history.length}
+        <div class="recent">
+          <span class="rlbl">Your designs</span>
+          <div class="rlist">
+            {#each history as h (h.id)}
+              <div class="ritem" class:on={design?.name === h.design.name}>
+                <button class="ropen" onclick={() => openFromHistory(h)} title={h.design.blurb}>
+                  <span class="rname">{h.design.name}</span>
+                  <span class="rwhen">{relTime(h.savedAt)}</span>
+                </button>
+                <button class="rdel" title="Remove" onclick={() => (history = removeDesign(h.id))}>×</button>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
 
       {#if error}<p class="err">{error}</p>{/if}
 
@@ -646,6 +697,27 @@
   }
   .chip:hover { border-color: var(--accent); color: var(--text); }
   .err { padding: 8px; color: var(--danger); font-size: 10.5px; line-height: 1.5; }
+
+  /* Saved designs. Present only when there are some, so a first-time visitor
+     sees the prompt box and nothing else. */
+  .recent { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  .rlbl { font-size: 8.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-ghost); }
+  .rlist { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
+  .ritem { display: flex; align-items: stretch; border-radius: 7px; overflow: hidden; }
+  .ritem:hover, .ritem.on { background: var(--card-bg); }
+  .ropen {
+    flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 7px;
+    background: none; border: none; color: var(--text); font: inherit;
+    font-size: 10.5px; padding: 4px 7px; cursor: pointer; text-align: left;
+  }
+  .ritem.on .rname { color: var(--accent); }
+  .rname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rwhen { font-size: 9px; color: var(--text-ghost); flex: 0 0 auto; }
+  .rdel {
+    background: none; border: none; color: var(--text-ghost); font: inherit;
+    font-size: 13px; line-height: 1; padding: 0 8px; cursor: pointer;
+  }
+  .rdel:hover { color: var(--danger); }
 
   .stream { padding: 8px; border-bottom: 1px solid var(--border); }
   .sh { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-dim); margin-bottom: 5px; }
