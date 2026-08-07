@@ -1,0 +1,78 @@
+import type { SatRec } from 'satellite.js';
+import * as THREE from 'three';
+
+export interface Satellite {
+  noradId: number;
+  name: string;
+  epochDays: number;
+  inclination: number;
+  raan: number;
+  eccentricity: number;
+  argPerigee: number;
+  meanAnomaly: number;
+  meanMotion: number;     // rad/s
+  semiMajorAxis: number;  // km
+  currentPos: THREE.Vector3;  // ECI km (render coords: x=eci.x, y=eci.z, z=-eci.y)
+  satrec: SatRec;
+  tleLine1?: string;
+  tleLine2?: string;
+  omm?: Record<string, unknown>; // OMM JSON record (for passing to workers)
+  // J2 secular perturbation rates (computed once at parse time)
+  raanRate: number;       // dΩ/dt in rad/s
+  argPerigeeRate: number; // dω/dt in rad/s
+  ndot: number;           // dn/dt in rad/s² (from TLE first derivative of mean motion)
+  stdMag: number | null;   // standard visual magnitude (at 1000 km, 90° phase), null if unknown
+  visualMag: number | null; // current apparent magnitude (null if eclipsed, unknown, or no observer)
+  decayed: boolean;        // true when SGP4 returns sub-surface position (orbit decayed / stale TLE)
+}
+
+export interface Marker {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+export interface MarkerGroup {
+  id: string;
+  label: string;
+  color: string;
+  defaultVisible: boolean;
+  markers: Marker[];
+}
+
+export interface AppConfig {
+  earthRotationOffset: number;
+  orbitsToDraw: number;
+  showClouds: boolean;
+  showNightLights: boolean;
+  orbitNormal: string;
+  orbitHighlighted: string;
+  satNormal: string;
+  satHighlighted: string;
+  satSelected: string;
+  footprintBg: string;
+  footprintBorder: string;
+  markerGroups: MarkerGroup[];
+}
+
+export interface SelectedSatInfo {
+  noradId: number;
+  name: string;
+  colorIndex: number;               // Index into SAT_COLORS
+  color: [number, number, number]; // RGB 0-1 (derived from SAT_COLORS_GL)
+  altKm: number;
+  speedKmS: number;
+  latDeg: number;
+  lonDeg: number;
+  incDeg: number;
+  eccen: number;
+  raanDeg: number;
+  periodMin: number;
+  // Apparent angular rate from observer (°/s), null if no observer
+  angularRateDegS: number | null;
+  // Magnitude (only populated when observer is set)
+  magStr: string | null;        // formatted magnitude or status string ("eclipsed" / "unknown" / "1.3")
+}
+
+export enum TargetLock { NONE, EARTH, MOON, SUN, PLANET, SAT }
+export enum ViewMode { VIEW_3D, VIEW_2D, VIEW_SKY }
