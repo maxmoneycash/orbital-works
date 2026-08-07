@@ -18,6 +18,7 @@
   import PolarPlot from './PolarPlot.svelte';
   import DopplerWindow from './DopplerWindow.svelte';
   import AnatomyWindow from './AnatomyWindow.svelte';
+  import DesignerWindow from './DesignerWindow.svelte';
   import LinkBudgetWindow from './LinkBudgetWindow.svelte';
   import DataSourcesWindow from './DataSourcesWindow.svelte';
   import ObserverWindow from './ObserverWindow.svelte';
@@ -61,6 +62,7 @@
   <PolarPlot />
   <DopplerWindow />
   <AnatomyWindow />
+  <DesignerWindow />
   <LinkBudgetWindow />
   <CommandPalette />
   <PassFilterWindow />

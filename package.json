@@ -11,9 +11,11 @@
     "rotator-sim": "node scripts/rotator-sim.mjs"
   },
   "dependencies": {
+    "ai": "^6.0.246",
     "satellite.js": "^6.0.2",
     "svelte": "^5.53.2",
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.4",

@@ -47,6 +47,8 @@ export const ICON_BACK = '<svg viewBox="0 0 12 12" fill="none" stroke="currentCo
 
 export const ICON_DATABASE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="4" rx="6" ry="2.5"/><path d="M2 4v8c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V4"/><path d="M2 8c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5"/></svg>';
 
+export const ICON_DESIGNER = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6.5" y="6.5" width="3" height="3"/><path d="M6.5 8h-2M11.5 8h-2"/><path d="M2 6v4h2.5V6zM11.5 6H14v4h-2.5z"/><path d="M12.6 1.4v2.4M11.4 2.6h2.4"/></svg>';
+
 export const ICON_MORE = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>';
 
 export const ICON_DOWNLOAD = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"/><path d="M4.5 7.5L8 11l3.5-3.5"/><path d="M2.5 13h11"/></svg>';

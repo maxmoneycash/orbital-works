@@ -134,6 +134,8 @@ class UIStore {
   // Ctrl+K away, and the dock keeps them reachable.
   anatomyOpen = $state(false);
   anatomyFocus = $state(0);
+  designerOpen = $state(false);
+  designerFocus = $state(0);
   linkBudgetOpen = $state(false);
   linkBudgetFocus = $state(0);
   passes = $state<SatellitePass[]>([]);
