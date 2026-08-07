@@ -9,6 +9,7 @@
     FLEET, PART_BY_ID, CATS, analyze, type Part,
   } from '../data/spacecraft';
   import { buildPart, assemble } from '../data/spacecraft-geometry';
+  import { makeSpaceEnvironment, configureRenderer, addSpacecraftLighting } from '../scene/spacecraft-render';
 
   function guessCraft(name: string): string {
     const n = name.toUpperCase();
@@ -48,6 +49,11 @@
     const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 3000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    configureRenderer(renderer);
+    // Without an environment the metals in these materials have nothing to
+    // reflect and resolve to flat grey — this is what makes the hardware read
+    // as metal rather than as painted plastic.
+    scene.environment = makeSpaceEnvironment(renderer);
     el.appendChild(renderer.domElement);
     renderer.domElement.style.display = 'block';
     // setSize(w, h, false) updates the drawing buffer but NOT the CSS size, so
@@ -57,13 +63,7 @@
     renderer.domElement.style.height = '100%';
     renderer.domElement.style.cursor = 'grab';
 
-    scene.add(new THREE.AmbientLight(0x4a6a86, 0.55));
-    const sun = new THREE.DirectionalLight(0xfff0d8, 2.1);
-    sun.position.set(6, 8, 5);
-    scene.add(sun);
-    const rim = new THREE.DirectionalLight(0x4e9fc0, 0.7);
-    rim.position.set(-7, -3, -6);
-    scene.add(rim);
+    addSpacecraftLighting(scene);
 
     const model = new THREE.Group();
     scene.add(model);

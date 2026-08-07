@@ -7,26 +7,57 @@
  */
 import * as THREE from 'three';
 import type { Part } from './spacecraft';
+import { solarCellMap, foilNormalMap, hullDetailMaps } from '../scene/spacecraft-render';
 
 /* -------------------------------------------------------------- GEOMETRY -- */
 
+/**
+ * Real spacecraft surfaces. Metalness is close to binary in reality — a surface
+ * is either a conductor or it is not — so the previous mid-range values (0.3,
+ * 0.5) described materials that do not exist and rendered as muddy plastic.
+ * Each entry below is a real finish you would find on a satellite.
+ */
 const MATS: Record<string, any> = {
-  shell: { color: 0x35485a, rough: 0.7, metal: 0.3 },
-  dark: { color: 0x1c2833, rough: 0.85, metal: 0.2 },
-  solar: { color: 0x14305c, rough: 0.35, metal: 0.5, emissive: 0x0a1830 },
-  gold: { color: 0xd9a145, rough: 0.45, metal: 0.85 },
-  copper: { color: 0xb5723c, rough: 0.5, metal: 0.8 },
-  white: { color: 0xb9c9d6, rough: 0.8, metal: 0.1 },
+  // Machined and anodised aluminium structure.
+  shell:  { color: 0x9aa3ac, rough: 0.42, metal: 1.0, env: 1.0, hull: true },
+  // Black anodised / radiator faces. Dielectric coating, so not metal.
+  dark:   { color: 0x14171b, rough: 0.55, metal: 0.15, env: 0.7, hull: true },
+  // Photovoltaic cells under coverglass: dark, and glassy rather than matte.
+  solar:  { color: 0x1b3358, rough: 0.30, metal: 0.30, env: 0.85, map: 'solar' },
+  // Multi-layer insulation. Kapton over aluminium — a true metal, and crinkled.
+  gold:   { color: 0xffc46b, rough: 0.30, metal: 1.0, env: 1.5, normal: 'foil' },
+  // Bare copper waveguide and feed hardware.
+  copper: { color: 0xc9743a, rough: 0.34, metal: 1.0, env: 1.2 },
+  // White thermal-control paint. Dielectric, fairly rough, bright.
+  white:  { color: 0xe6ebef, rough: 0.62, metal: 0.04, env: 0.55, hull: true },
 };
 
 function mkMat(key: string) {
   const m = MATS[key] || MATS.shell;
-  return new THREE.MeshStandardMaterial({
+  const mat = new THREE.MeshStandardMaterial({
     color: m.color,
     roughness: m.rough,
     metalness: m.metal,
-    emissive: m.emissive || 0x000000,
+    // How strongly this surface picks up the space environment. Metals live or
+    // die by this; painted surfaces need it dialled back or they look wet.
+    envMapIntensity: m.env ?? 1.0,
   });
+  if (m.map === 'solar') {
+    mat.map = solarCellMap();
+    mat.map.repeat.set(2, 1);
+  }
+  if (m.hull) {
+    const { normal, roughness } = hullDetailMaps();
+    mat.normalMap = normal;
+    mat.normalScale = new THREE.Vector2(0.5, 0.5);
+    mat.roughnessMap = roughness;
+  }
+  if (m.normal === 'foil') {
+    mat.normalMap = foilNormalMap();
+    mat.normalMap.repeat.set(3, 3);
+    mat.normalScale = new THREE.Vector2(0.65, 0.65);
+  }
+  return mat;
 }
 
 function addEdges(group: THREE.Group, mesh: THREE.Mesh, color = 0x6d8fa6) {
@@ -43,6 +74,14 @@ function addEdges(group: THREE.Group, mesh: THREE.Mesh, color = 0x6d8fa6) {
 
 export function buildPart(part: Part, busGeom: any): THREE.Group {
   const g = new THREE.Group();
+  // Shadows are applied to the finished group rather than at each construction
+  // site, so every primitive gets them without fifteen separate edits.
+  const withShadows = (grp: THREE.Group) => {
+    grp.traverse((o: any) => {
+      if (o.isMesh && !o.userData.plume) { o.castShadow = true; o.receiveShadow = true; }
+    });
+    return grp;
+  };
   const gm = part.geom || {};
   const bw = busGeom.w || 2.8,
     bd = busGeom.d || 1.9,
@@ -315,7 +354,7 @@ export function buildPart(part: Part, busGeom: any): THREE.Group {
       g.add(m);
     }
   }
-  return g;
+  return withShadows(g);
 }
 
 export const DIRS: Record<string, number[]> = {

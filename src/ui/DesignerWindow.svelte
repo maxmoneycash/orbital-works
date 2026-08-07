@@ -17,6 +17,7 @@
   import { uiStore } from '../stores/ui.svelte';
   import { PART_BY_ID, CATS, analyze, validate, type Part } from '../data/spacecraft';
   import { buildPart, assemble } from '../data/spacecraft-geometry';
+  import { makeSpaceEnvironment, configureRenderer, addSpacecraftLighting } from '../scene/spacecraft-render';
   import { customToPart, SENTINEL, type Design } from '../data/design-parts';
   import { encodeDesign, decodeDesign } from '../data/design-share';
   import { loadHistory, saveDesign, removeDesign, type HistoryEntry } from '../data/design-history';
@@ -242,6 +243,11 @@
     const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 3000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    configureRenderer(renderer);
+    // Without an environment the metals in these materials have nothing to
+    // reflect and resolve to flat grey — this is what makes the hardware read
+    // as metal rather than as painted plastic.
+    scene.environment = makeSpaceEnvironment(renderer);
     el.appendChild(renderer.domElement);
     renderer.domElement.style.display = 'block';
     // setSize(w, h, false) updates the drawing buffer but NOT the CSS size, so
@@ -251,13 +257,7 @@
     renderer.domElement.style.height = '100%';
     renderer.domElement.style.cursor = 'grab';
 
-    scene.add(new THREE.AmbientLight(0x4a6a86, 0.55));
-    const sun = new THREE.DirectionalLight(0xfff0d8, 2.1);
-    sun.position.set(6, 8, 5);
-    scene.add(sun);
-    const rim = new THREE.DirectionalLight(0x4e9fc0, 0.7);
-    rim.position.set(-7, -3, -6);
-    scene.add(rim);
+    addSpacecraftLighting(scene);
 
     // One-metre reference grid, so the vehicle has a sense of scale.
     const grid = new THREE.GridHelper(20, 20, 0x2b4256, 0x1b2b38);
