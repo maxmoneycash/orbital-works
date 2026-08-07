@@ -56,6 +56,16 @@ export default defineConfig({
     strictPort: true,
     host: host || false,
     watch: { ignored: ['**/src-tauri/**'] },
+    // `vite dev` cannot run the serverless functions in api/. Point them at a
+    // deployment so the Designer works locally without `vercel dev`, which
+    // proxies every texture and data file and takes minutes to boot.
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_TARGET || 'https://orbital-works.vercel.app',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
   build: {
     rollupOptions: {

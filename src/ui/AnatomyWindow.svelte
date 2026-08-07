@@ -172,8 +172,11 @@
     const list = parts;
     if (S) rebuild(list);
   });
+  // Reactive read before the S guard — see DesignerWindow. Works today only
+  // because init() happens to run first; one markup change would break it.
   $effect(() => {
-    if (S) S.explodeTarget = explode;
+    const v = explode;
+    if (S) S.explodeTarget = v;
   });
   $effect(() => {
     const id = selected;

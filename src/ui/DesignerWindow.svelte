@@ -315,8 +315,12 @@
 
   $effect(() => { if (host && !S) init(host); });
   $effect(() => { const list = parts; if (S) rebuild(list); });
-  $effect(() => { if (S) S.explodeTarget = explode; });
-  $effect(() => { if (S) S.deployTarget = deploy; });
+  // Read the reactive value BEFORE the S guard. $effect only tracks state it
+  // actually reads, and on the first run S is null because the viewport lives
+  // inside {#if design} and has not mounted — so a guard-first version never
+  // reads `explode`, never registers the dependency, and stays inert forever.
+  $effect(() => { const v = explode; if (S) S.explodeTarget = v; });
+  $effect(() => { const v = deploy; if (S) S.deployTarget = v; });
   $effect(() => {
     const id = selected ?? hovered;
     if (!S) return;
