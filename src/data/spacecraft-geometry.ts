@@ -349,10 +349,17 @@ export function assemble(parts: Part[]) {
     } else if (p.slot === "zenith") {
       const h = gm.kind === "whip" ? 0.06 : gm.h || gm.r || 0.12;
       yUp += h / 2 + 0.04;
+      // Zenith parts tile in a 3-wide grid across the bus deck. The spacing
+      // has to scale with the bus: a fixed 0.5 m step spreads a 6U cubesat's
+      // avionics half a metre apart on a vehicle barely wider than that, so
+      // the spacecraft reads as loose debris. Clamping keeps large buses at
+      // their existing layout while small ones tighten onto the deck.
+      const sx = Math.min(0.5, (bg.w || 2.8) / 3.2);
+      const sz = Math.min(0.45, (bg.d || 1.9) / 3.2);
       pos.set(
-        (rank.up % 3) * 0.5 - 0.5,
+        (rank.up % 3) * sx - sx,
         yUp,
-        Math.floor(rank.up / 3) * 0.45 - 0.3
+        Math.floor(rank.up / 3) * sz - sz * 0.66
       );
       yUp = Math.max(yUp, bt / 2);
     } else if (p.slot === "aft") {

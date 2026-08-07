@@ -145,8 +145,28 @@ export default {
         try {
           const result = streamText({
             model: MODEL,
-            system: SYSTEM,
-            prompt: userPrompt,
+            /**
+             * The system prompt goes in `messages` rather than the `system`
+             * field so it can carry a cache breakpoint — ~2,000 tokens of
+             * component catalogue and rules that are byte-identical on every
+             * request. Measured: first call writes 2,483 tokens, subsequent
+             * calls read them at a tenth of the price.
+             *
+             * The SDK warns that system messages in `messages` can enable
+             * prompt injection. That risk is about system text assembled from
+             * user input; SYSTEM here is a module-level constant built from the
+             * component catalogue, and the caller's text is confined to the
+             * user message below.
+             */
+            allowSystemInMessages: true,
+            messages: [
+              {
+                role: 'system',
+                content: SYSTEM,
+                providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
+              },
+              { role: 'user', content: userPrompt },
+            ],
             maxOutputTokens: 4000,
           });
 

@@ -4,10 +4,13 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/design.ts": { "maxDuration": 60 }
+    "api/design.ts": { "maxDuration": 60 },
+    "api/og.ts": { "maxDuration": 15 },
+    "api/s.ts": { "maxDuration": 10 }
   },
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/s", "destination": "/api/s" },
+    { "source": "/((?!api/|s$).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

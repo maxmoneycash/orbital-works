@@ -12,11 +12,13 @@
   import { onDestroy } from 'svelte';
   import * as THREE from 'three';
   import DraggableWindow from './shared/DraggableWindow.svelte';
+  import MobileSheet from './shared/MobileSheet.svelte';
   import Slider from './shared/Slider.svelte';
   import { uiStore } from '../stores/ui.svelte';
   import { PART_BY_ID, CATS, analyze, validate, type Part } from '../data/spacecraft';
   import { buildPart, assemble } from '../data/spacecraft-geometry';
   import { customToPart, SENTINEL, type Design } from '../data/design-parts';
+  import { encodeDesign, decodeDesign } from '../data/design-share';
 
   const EXAMPLES = [
     'Spots wildfires in their first ten minutes over the western US',
@@ -42,7 +44,53 @@
   let hovered = $state<string | null>(null);
   let tab = $state<Tab>('summary');
   let dims = $state<[number, number, number] | null>(null);
+  let shareLabel = $state('Share');
   let timer: ReturnType<typeof setInterval> | null = null;
+  let shareTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * A shared design arrives encoded in the URL, so opening a link reconstructs
+   * the same spacecraft with no account and no database — the link is the
+   * storage. Runs once at startup, then strips the parameter so a later reload
+   * doesn't fight whatever the visitor has since designed.
+   */
+  async function loadFromUrl() {
+    const encoded = new URLSearchParams(location.search).get('d');
+    if (!encoded) return;
+    const incoming = await decodeDesign(encoded);
+    history.replaceState(null, '', location.pathname);
+    if (!incoming) {
+      error = 'That share link is malformed or from an older version.';
+      uiStore.designerOpen = true;
+      return;
+    }
+    design = incoming;
+    dropped = 0;
+    brief = `${incoming.missionClass} — shared design`;
+    tab = 'summary';
+    uiStore.designerOpen = true;
+    uiStore.designerFocus++;
+  }
+
+  async function share() {
+    if (!design) return;
+    const url = `${location.origin}/s?d=${encodeURIComponent(await encodeDesign(design))}`;
+    // navigator.share is the right affordance on a phone; clipboard is the
+    // right one on a desktop. Both can reject (no permission, user dismissal),
+    // so neither is allowed to throw into the UI.
+    try {
+      if (navigator.share && uiStore.isMobile) {
+        await navigator.share({ title: `${design.name} — Orbital Works`, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      shareLabel = 'Link copied';
+    } catch {
+      shareLabel = 'Copy failed';
+    }
+    if (shareTimer) clearTimeout(shareTimer);
+    shareTimer = setTimeout(() => (shareLabel = 'Share'), 2200);
+  }
 
   /**
    * Library parts first, and the heaviest STRUCTURE part ahead of everything.
@@ -319,6 +367,14 @@
     S.grid.position.y = -size.y / 2 - 0.4;
   }
 
+  // Run once: a share link should open the designer even if the window is closed.
+  let urlChecked = false;
+  $effect(() => {
+    if (urlChecked) return;
+    urlChecked = true;
+    loadFromUrl();
+  });
+
   $effect(() => { if (host && !S) init(host); });
   $effect(() => { const list = parts; if (S) rebuild(list); });
   // Read the reactive value BEFORE the S guard. $effect only tracks state it
@@ -345,6 +401,7 @@
 
   onDestroy(() => {
     if (timer) clearInterval(timer);
+    if (shareTimer) clearTimeout(shareTimer);
     if (!S) return;
     cancelAnimationFrame(S.raf);
     S.ro?.disconnect();
@@ -356,16 +413,7 @@
     Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d }) : '—';
 </script>
 
-{#if uiStore.designerOpen}
-  <DraggableWindow
-    title="Designer"
-    id="designer"
-    bind:open={uiStore.designerOpen}
-    focus={uiStore.designerFocus}
-    initialX={360}
-    initialY={90}
-    noPad
-  >
+{#snippet designerContent()}
     <div class="dz">
       <div class="brief">
         <textarea
@@ -537,14 +585,46 @@
             onkeydown={(e) => { if (e.key === 'Enter' && refine.trim()) generate(refine.trim()); }}
           />
           <button class="rgo" disabled={busy || !refine.trim()} onclick={() => generate(refine.trim())}>Revise</button>
+          <button class="rgo share" onclick={share} title="Copy a link that rebuilds this design">{shareLabel}</button>
         </div>
       {/if}
     </div>
+{/snippet}
+
+<!--
+  One content block, two shells. On a phone the Designer is a swipe-dismissable
+  sheet reached from the nav; on a desktop it is a draggable window on the
+  canvas. Same pattern the rest of the app already uses, so the Designer
+  behaves like every other panel rather than being a special case.
+-->
+{#if uiStore.isMobile}
+  <MobileSheet id="designer" title="Designer">
+    {@render designerContent()}
+  </MobileSheet>
+{:else if uiStore.designerOpen}
+  <DraggableWindow
+    title="Designer"
+    id="designer"
+    bind:open={uiStore.designerOpen}
+    focus={uiStore.designerFocus}
+    initialX={360}
+    initialY={90}
+    noPad
+  >
+    {@render designerContent()}
   </DraggableWindow>
 {/if}
 
 <style>
-  .dz { width: 420px; max-height: 76vh; overflow-y: auto; }
+  .dz { width: 420px; max-width: 100%; max-height: 76vh; overflow-y: auto; }
+  @media (max-width: 768px) {
+    /* The sheet owns the scroll container and the width; a fixed width and a
+       second scroller inside it would fight the swipe-to-dismiss gesture. */
+    .dz { width: 100%; max-height: none; overflow-y: visible; }
+    .viewport { height: 46vh; }
+    textarea { font-size: 16px; }  /* iOS zooms the page below 16px */
+    .refine input { font-size: 16px; }
+  }
   .brief { padding: 8px; border-bottom: 1px solid var(--border); }
   textarea {
     width: 100%; resize: vertical; background: var(--card-bg); color: var(--text);
@@ -674,4 +754,6 @@
   }
   .rgo:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
   .rgo:disabled { opacity: .4; cursor: default; }
+  .rgo.share { border-color: var(--live); color: var(--live); white-space: nowrap; }
+  .rgo.share:hover { background: var(--card-bg); }
 </style>
