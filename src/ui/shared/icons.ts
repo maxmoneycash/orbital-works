@@ -49,6 +49,12 @@ export const ICON_DATABASE = '<svg viewBox="0 0 16 16" fill="none" stroke="curre
 
 export const ICON_DESIGNER = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6.5" y="6.5" width="3" height="3"/><path d="M6.5 8h-2M11.5 8h-2"/><path d="M2 6v4h2.5V6zM11.5 6H14v4h-2.5z"/><path d="M12.6 1.4v2.4M11.4 2.6h2.4"/></svg>';
 
+export const ICON_ARRAY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 14V9"/><path d="M2.5 14a5.5 5.5 0 0 1 11 0" opacity=".55"/><path d="M4.8 14a3.2 3.2 0 0 1 6.4 0"/><rect x="2" y="2" width="2.4" height="2.4"/><rect x="6.8" y="2" width="2.4" height="2.4"/><rect x="11.6" y="2" width="2.4" height="2.4"/></svg>';
+
+export const ICON_WAVEFORM = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 8h1.8l1.4-5 1.8 10 1.8-8 1.6 6 1.4-3H15"/></svg>';
+
+export const ICON_SHELLS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><ellipse cx="8" cy="8" rx="6.5" ry="3" opacity=".8"/><ellipse cx="8" cy="8" rx="3" ry="6.5" opacity=".45"/></svg>';
+
 export const ICON_MORE = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>';
 
 export const ICON_DOWNLOAD = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"/><path d="M4.5 7.5L8 11l3.5-3.5"/><path d="M2.5 13h11"/></svg>';

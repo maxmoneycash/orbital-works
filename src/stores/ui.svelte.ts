@@ -134,6 +134,14 @@ class UIStore {
   // Ctrl+K away, and the dock keeps them reachable.
   anatomyOpen = $state(false);
   anatomyFocus = $state(0);
+  /** How many catalogued objects currently sit in each licensed Starlink shell. */
+  shellCensus = $state<Record<string, number>>({});
+  constellationOpen = $state(false);
+  constellationFocus = $state(0);
+  phasedArrayOpen = $state(false);
+  phasedArrayFocus = $state(0);
+  waveformOpen = $state(false);
+  waveformFocus = $state(0);
   designerOpen = $state(false);
   designerFocus = $state(0);
   linkBudgetOpen = $state(false);

@@ -45,6 +45,17 @@ Changes made in this version:
   - Replaced GitHub Pages deployment with Vercel, and resolved Open Graph
     tags against the deployment domain at build time.
 
+  - Added a Satellite Designer window: a language model selects hardware from
+    the component library and the existing procedural geometry pipeline renders
+    the result, graded by the same mass and power analysis as the rest of the
+    fleet. Served by a Vercel function using the AI Gateway.
+
+  - Added a Phased Array window and a Waveform window, both computed from the
+    existing patternDb / OFDM / STARLINK_MCS tables rather than new physics.
+
+  - Added a Constellation window comparing the licensed Starlink shell
+    architecture against objects matched in the live catalogue.
+
 ------------------------------------------------------------------------------
 Third-party data and assets
 ------------------------------------------------------------------------------
@@ -58,3 +69,5 @@ Planet textures                 Solar System Scope
                                 (https://www.solarsystemscope.com/textures/)
 Spacecraft RF specifications    BWX-STARLINK (MIT)
                                 NIS-Starlink-Video (MIT)
+Starlink shell architecture     BWX-STARLINK (MIT), sourcing FCC grants and
+                                Jonathan McDowell's catalogue (planet4589.org)

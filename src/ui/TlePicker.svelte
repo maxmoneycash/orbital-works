@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { uiStore } from '../stores/ui.svelte';
   import { sourcesStore } from '../stores/sources.svelte';
-  import { ICON_SEARCH, ICON_COMMAND, ICON_SELECTION, ICON_VIEW, ICON_TIME, ICON_SETTINGS, ICON_OBSERVER, ICON_HELP, ICON_2D, ICON_3D, ICON_SKY, ICON_PASSES, ICON_DATA_SOURCES, ICON_DATABASE, ICON_RADAR, ICON_FEEDBACK, ICON_DESIGNER } from './shared/icons';
+  import { ICON_SEARCH, ICON_COMMAND, ICON_SELECTION, ICON_VIEW, ICON_TIME, ICON_SETTINGS, ICON_OBSERVER, ICON_HELP, ICON_2D, ICON_3D, ICON_SKY, ICON_PASSES, ICON_DATA_SOURCES, ICON_DATABASE, ICON_RADAR, ICON_FEEDBACK, ICON_DESIGNER, ICON_ARRAY, ICON_WAVEFORM, ICON_SHELLS } from './shared/icons';
   import { observerStore } from '../stores/observer.svelte';
   import { ViewMode } from '../types';
 
@@ -65,6 +65,15 @@
       </button>
       <button class="icon-btn" class:active={uiStore.designerOpen} title="Designer" onclick={() => uiStore.designerOpen = !uiStore.designerOpen}>
         {@html ICON_DESIGNER}
+      </button>
+      <button class="icon-btn" class:active={uiStore.constellationOpen} title="Constellation" onclick={() => uiStore.constellationOpen = !uiStore.constellationOpen}>
+        {@html ICON_SHELLS}
+      </button>
+      <button class="icon-btn" class:active={uiStore.phasedArrayOpen} title="Phased Array" onclick={() => uiStore.phasedArrayOpen = !uiStore.phasedArrayOpen}>
+        {@html ICON_ARRAY}
+      </button>
+      <button class="icon-btn" class:active={uiStore.waveformOpen} title="Waveform" onclick={() => uiStore.waveformOpen = !uiStore.waveformOpen}>
+        {@html ICON_WAVEFORM}
       </button>
       <button class="icon-btn" class:active={uiStore.selectionWindowOpen} title="Selection" onclick={() => uiStore.selectionWindowOpen = !uiStore.selectionWindowOpen}>
         {@html ICON_SELECTION}

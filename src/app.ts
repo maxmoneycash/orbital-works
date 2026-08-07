@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { Satellite } from './types';
 import { TargetLock, ViewMode } from './types';
 import { defaultConfig } from './config';
-import { DRAW_SCALE, EARTH_RADIUS_KM, MOON_RADIUS_KM, DEG2RAD, RAD2DEG, MAP_W, MAP_H, MOBILE_BREAKPOINT } from './constants';
+import { DRAW_SCALE, EARTH_RADIUS_KM, EARTH_RADIUS_EQ_KM, MOON_RADIUS_KM, DEG2RAD, RAD2DEG, MAP_W, MAP_H, MOBILE_BREAKPOINT } from './constants';
+import { classifyShell } from './data/constellation';
 import { TimeSystem } from './simulation/time-system';
 import { Earth } from './scene/earth';
 import { CloudLayer } from './scene/cloud-layer';
@@ -670,6 +671,17 @@ export class App {
     sourcesStore.totalSats = deduped.length;
     sourcesStore.dupsRemoved = dupsRemoved;
     uiStore.satCount = deduped.length;
+
+    // Census the catalogue against the licensed Starlink shells. Done once per
+    // load rather than per frame — semi-major axis only changes when the TLEs do.
+    {
+      const census: Record<string, number> = {};
+      for (const s of deduped) {
+        const id = classifyShell(s.inclination * 180 / Math.PI, s.semiMajorAxis - EARTH_RADIUS_EQ_KM);
+        if (id) census[id] = (census[id] || 0) + 1;
+      }
+      uiStore.shellCensus = census;
+    }
     uiStore.satStatusExtra = dupsRemoved > 0 ? `${dupsRemoved} dups` : '';
 
     // Set load state for StatsPanel refresh button visibility

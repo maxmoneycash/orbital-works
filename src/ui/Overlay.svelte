@@ -19,6 +19,9 @@
   import DopplerWindow from './DopplerWindow.svelte';
   import AnatomyWindow from './AnatomyWindow.svelte';
   import DesignerWindow from './DesignerWindow.svelte';
+  import PhasedArrayWindow from './PhasedArrayWindow.svelte';
+  import WaveformWindow from './WaveformWindow.svelte';
+  import ConstellationWindow from './ConstellationWindow.svelte';
   import LinkBudgetWindow from './LinkBudgetWindow.svelte';
   import DataSourcesWindow from './DataSourcesWindow.svelte';
   import ObserverWindow from './ObserverWindow.svelte';
@@ -63,6 +66,9 @@
   <DopplerWindow />
   <AnatomyWindow />
   <DesignerWindow />
+  <PhasedArrayWindow />
+  <WaveformWindow />
+  <ConstellationWindow />
   <LinkBudgetWindow />
   <CommandPalette />
   <PassFilterWindow />

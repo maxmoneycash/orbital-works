@@ -111,9 +111,15 @@
           ...(instruction && design ? { previous: design, instruction } : {}),
         }),
       });
+      if (res.status === 403 || res.status === 429) {
+        // The WAF rate limit denies with 403 and returns its own HTML page, so
+        // catch it before we surface a block of markup as an error message.
+        throw new Error('Rate limited — 10 designs per hour. Each one costs real tokens. Try again shortly.');
+      }
       if (!res.ok || !res.body) {
         const t = await res.text().catch(() => '');
-        throw new Error(t.slice(0, 200) || `Request failed (${res.status})`);
+        const clean = t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        throw new Error(clean.slice(0, 160) || `Request failed (${res.status})`);
       }
 
       // Everything before the NUL sentinel is display-only model text; the

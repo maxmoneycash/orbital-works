@@ -21,9 +21,9 @@ azimuth, duration, visual magnitude and eclipse state — filterable by
 elevation, azimuth window, duration, frequency, and a custom horizon mask for
 the trees and buildings you actually have.
 
-**Radio.** Polar plot, Doppler shift curves, SatNOGS transmitter database, and
-serial antenna rotator control speaking Yaesu, SPID, GS-232, EasyComm,
-Prosistel, RC2800, FLIR and rotctld/rigctld.
+**Ground station.** Polar plot, Doppler shift curves, SatNOGS transmitter
+database, and serial antenna rotator control speaking Yaesu, SPID, GS-232,
+EasyComm, Prosistel, RC2800, FLIR and rotctld/rigctld.
 
 **Anatomy.** 15 spacecraft modelled as parts lists over a shared 66-component
 library — buses, arrays, Hall thrusters, phased arrays, laser terminals,
@@ -31,6 +31,23 @@ brightness mitigation. The 3D model is generated procedurally from the parts
 list rather than loaded as a fixed mesh, so the exploded view and the mass and
 power budgets all fall out of the same data. Modelled mass is shown against
 published mass, so divergence is visible rather than hidden.
+
+**Designer.** Describe a mission in plain language and a model designs a
+satellite for it — picking hardware from the 84-component library, inventing
+only what the catalogue lacks, and rendering the result through the same
+procedural geometry pipeline as the hand-built fleet. It is then graded by the
+same mass and power analysis, so the app will tell you when the design does not
+close. Click parts in 3D, stow the arrays, and revise it in place ("halve the
+mass") without starting over.
+
+**Radio.** A Phased Array window showing array factor, scan loss and the
+grating lobes that appear past ~0.5λ element spacing, steerable at whatever
+satellite you are tracking. A Waveform window with the Ku downlink's OFDM
+spectrum, its time-domain sum, and the constellation the receiver decides on —
+4QAM and 16QAM only, because that is all that has ever been observed on air.
+
+**Constellation.** The licensed Starlink shell architecture against what is
+actually in your loaded catalogue, matched on inclination and altitude.
 
 **Link budget.** Phased-array and link modelling wired to the live tracking
 state. It reads the tracked satellite and your observer position, derives the
