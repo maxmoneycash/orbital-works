@@ -18,6 +18,10 @@ export const GEOM_KINDS = [
   'plate', 'box', 'wing', 'panel', 'tiles', 'dish', 'cylinder',
   'thruster', 'wheels', 'tracker', 'laser', 'telescope', 'patch',
   'whip', 'blanket',
+  // Mission-distinguishing hardware. Without these every propulsion system had
+  // to be drawn as a box and every instrument as a tube, which is why designs
+  // for very different missions all looked alike.
+  'tank', 'boom', 'radiator', 'horn',
 ] as const;
 
 export const GEOM_MATS = ['shell', 'dark', 'solar', 'gold', 'copper', 'white'] as const;
@@ -87,6 +91,10 @@ const GEOM_DEFAULTS: Record<string, Record<string, unknown>> = {
   patch:     { w: 0.4, d: 0.4, mat: 'copper' },
   whip:      { len: 0.9 },
   blanket:   { mat: 'gold' },
+  tank:      { r: 0.28, h: 0, mat: 'white' },
+  boom:      { len: 3, r: 0.11 },
+  radiator:  { w: 1.2, d: 0.8 },
+  horn:      { r: 0.16, len: 0.42 },
 };
 
 /**

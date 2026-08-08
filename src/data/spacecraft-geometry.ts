@@ -432,24 +432,68 @@ export function buildPart(part: Part, busGeom: any): THREE.Group {
       }
       break;
     }
+    /**
+     * Telescope. This is the payload on every imaging mission, so it does most
+     * of the work of making an observation satellite look like one. A bare tube
+     * does not: a real instrument has a stray-light baffle with internal vanes,
+     * a secondary mirror held on a spider, and a mirror you can actually see
+     * down the barrel.
+     */
     case "telescope": {
+      const r = gm.r, len = gm.len;
       const tube = new THREE.Mesh(
-        new THREE.CylinderGeometry(gm.r, gm.r * 0.8, gm.len, 22, 1, true),
-        mkMat("gold")
+        new THREE.CylinderGeometry(r, r * 0.8, len, 24, 1, true),
+        mkMat("gold"),
       );
       tube.material.side = THREE.DoubleSide;
+      tube.castShadow = true;
       g.add(tube);
-      const ap = new THREE.Mesh(
-        new THREE.CircleGeometry(gm.r * 0.95, 22),
-        new THREE.MeshStandardMaterial({
-          color: 0x0a0f14,
-          roughness: 0.2,
-          metalness: 0.9,
-        })
+
+      // Stray-light baffle, and the vanes inside it that kill glancing light.
+      const baffle = new THREE.Mesh(
+        new THREE.CylinderGeometry(r * 1.06, r * 1.02, len * 0.34, 24, 1, true),
+        mkMat("dark"),
       );
-      ap.rotation.x = Math.PI / 2;
-      ap.position.y = -gm.len / 2 + 0.01;
-      g.add(ap);
+      baffle.material.side = THREE.DoubleSide;
+      baffle.position.y = -len * 0.5 - len * 0.14;
+      baffle.castShadow = true;
+      g.add(baffle);
+      for (let v = 0; v < 3; v++) {
+        const vane = new THREE.Mesh(
+          new THREE.RingGeometry(r * 0.72, r * 1.0, 22),
+          mkMat("dark"),
+        );
+        vane.rotation.x = Math.PI / 2;
+        vane.position.y = -len * 0.5 - len * 0.05 - v * len * 0.09;
+        g.add(vane);
+      }
+
+      // Primary mirror at the bottom of the barrel.
+      const primary = new THREE.Mesh(
+        new THREE.CircleGeometry(r * 0.92, 24),
+        new THREE.MeshStandardMaterial({
+          color: 0x9fb6c6, roughness: 0.05, metalness: 1.0, envMapIntensity: 1.6,
+        }),
+      );
+      primary.rotation.x = -Math.PI / 2;
+      primary.position.y = len * 0.45;
+      g.add(primary);
+
+      // Secondary on a four-arm spider, obscuring the centre as it really does.
+      const secondary = new THREE.Mesh(
+        new THREE.CylinderGeometry(r * 0.26, r * 0.26, r * 0.1, 16),
+        mkMat("dark"),
+      );
+      secondary.position.y = -len * 0.28;
+      secondary.castShadow = true;
+      g.add(secondary);
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2;
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(r * 0.9, 0.006, 0.012), mkMat("white"));
+        arm.position.set(Math.cos(a) * r * 0.45, -len * 0.28, Math.sin(a) * r * 0.45);
+        arm.rotation.y = a;
+        g.add(arm);
+      }
       addEdges(g, tube, 0xd9a145);
       break;
     }
@@ -484,6 +528,125 @@ export function buildPart(part: Part, busGeom: any): THREE.Group {
       g.add(m);
       break;
     }
+    /**
+     * Propellant tank. Spherical or capsule-shaped pressure vessels are among
+     * the most recognisable objects on a spacecraft, and nothing in the old
+     * primitive set could produce one — every propulsion system had to be drawn
+     * as a box.
+     */
+    case "tank": {
+      const r = gm.r || 0.28;
+      const len = gm.h || 0;
+      const mat = mkMat(gm.mat || "white");
+      const body = len > 0.02
+        ? new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 8, 20), mat)
+        : new THREE.Mesh(new THREE.SphereGeometry(r, 24, 16), mat);
+      body.castShadow = true; body.receiveShadow = true;
+      g.add(body);
+      // Girth band and mounting lugs — a bare sphere reads as a ball.
+      const band = new THREE.Mesh(new THREE.TorusGeometry(r * 1.01, r * 0.055, 8, 28), mkMat("shell"));
+      band.rotation.x = Math.PI / 2;
+      band.castShadow = true;
+      g.add(band);
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2;
+        const lug = new THREE.Mesh(roundedBox(r * 0.22, r * 0.5, r * 0.16), mkMat("shell"));
+        lug.position.set(Math.cos(a) * r * 1.02, -r * 0.62, Math.sin(a) * r * 1.02);
+        lug.castShadow = true;
+        g.add(lug);
+      }
+      break;
+    }
+
+    /**
+     * Deployable boom or truss. SAR antennas, magnetometers and gravity-gradient
+     * masts all ride on open lattice, and lattice is visually unmistakable —
+     * it is the one structure that reads as "space hardware" at any distance.
+     */
+    case "boom": {
+      const len = gm.len || 3;
+      const bays = Math.max(3, Math.round(len / 0.45));
+      const w = gm.r || 0.11;
+      const strut = mkMat("white");
+      const bayLen = len / bays;
+      for (let b = 0; b < bays; b++) {
+        const x = w * 0 + bayLen * (b + 0.5);
+        // Three longerons plus diagonal bracing per bay.
+        for (let k = 0; k < 3; k++) {
+          const a = (k / 3) * Math.PI * 2;
+          const lon = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, bayLen, 6), strut);
+          lon.rotation.z = Math.PI / 2;
+          lon.position.set(x, Math.cos(a) * w, Math.sin(a) * w);
+          lon.castShadow = true;
+          g.add(lon);
+
+          const nextA = ((k + 1) / 3) * Math.PI * 2;
+          const diag = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, bayLen * 1.35, 5), strut);
+          diag.position.set(
+            x, (Math.cos(a) + Math.cos(nextA)) * w * 0.5, (Math.sin(a) + Math.sin(nextA)) * w * 0.5,
+          );
+          diag.rotation.z = Math.PI / 2.6;
+          diag.rotation.y = a;
+          diag.castShadow = true;
+          g.add(diag);
+        }
+        // Ring frame at each bay joint.
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(w, 0.009, 6, 14), strut);
+        ring.rotation.y = Math.PI / 2;
+        ring.position.set(x + bayLen / 2, 0, 0);
+        g.add(ring);
+      }
+      break;
+    }
+
+    /**
+     * Radiator panel. Heat rejection is a large fraction of a real spacecraft's
+     * surface area, and radiators are recognisable by the heat pipes running
+     * across an otherwise plain white face.
+     */
+    case "radiator": {
+      const w = gm.w || 1.2, d = gm.d || 0.8;
+      const face = new THREE.Mesh(roundedBox(w, 0.022, d), mkMat("white"));
+      face.castShadow = true; face.receiveShadow = true;
+      g.add(face);
+      const pipes = Math.max(3, Math.round(w / 0.14));
+      for (let i = 0; i < pipes; i++) {
+        const pipe = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.011, 0.011, d * 0.94, 8),
+          mkMat("shell"),
+        );
+        pipe.rotation.x = Math.PI / 2;
+        pipe.position.set(-w / 2 + (w / pipes) * (i + 0.5), 0.017, 0);
+        pipe.castShadow = true;
+        g.add(pipe);
+      }
+      // Dark backing — the anti-sun face of a radiator is not white.
+      const back = new THREE.Mesh(roundedBox(w * 0.98, 0.01, d * 0.98), mkMat("dark"));
+      back.position.y = -0.016;
+      g.add(back);
+      break;
+    }
+
+    /** Horn antenna — the flared feed used across comms and telemetry. */
+    case "horn": {
+      const r = gm.r || 0.16, len = gm.len || 0.42;
+      const flare = new THREE.Mesh(
+        new THREE.CylinderGeometry(r, r * 0.34, len, 18, 1, true),
+        mkMat("copper"),
+      );
+      flare.material.side = THREE.DoubleSide;
+      flare.castShadow = true;
+      g.add(flare);
+      const throat = new THREE.Mesh(
+        new THREE.CylinderGeometry(r * 0.34, r * 0.34, len * 0.3, 14),
+        mkMat("shell"),
+      );
+      throat.position.y = -len * 0.62;
+      throat.castShadow = true;
+      g.add(throat);
+      break;
+    }
+
     default: {
       const m = box(0.3, 0.1, 0.3, "shell");
       g.add(m);

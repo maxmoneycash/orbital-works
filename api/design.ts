@@ -33,6 +33,7 @@ const GEOM_FIELDS = [
   'cylinder: r,h,mat', 'thruster: r,h,count', 'wheels: r,h,count',
   'tracker: r,h,count', 'laser: r,count', 'telescope: r,len',
   'patch: w,d,mat', 'whip: len', 'blanket: mat',
+  'tank: r,h(0=sphere),mat', 'boom: len,r', 'radiator: w,d', 'horn: r,len',
 ].join(' · ');
 
 const SYSTEM = `You are a spacecraft systems engineer designing a satellite from a mission brief.
@@ -58,6 +59,7 @@ DESIGN RULES
 - Include ATTITUDE control. Include PROPULSION if the orbit needs maintaining or deorbiting.
 - Payload must match the mission: imaging needs OPTICAL, comms needs USER LINK and usually BACKHAUL.
 - Masses, powers and dimensions must be mutually plausible. No 12 m antenna on a 4 kg spacecraft.
+- Reach for the hardware that makes the mission legible rather than defaulting to boxes: a propellant tank ("tank") for anything with real delta-v, a lattice "boom" for a deployed SAR antenna, magnetometer or gravity-gradient mast, a "radiator" wherever a high-power payload must reject heat, a "horn" for a comms feed, a "telescope" for optical or infrared imaging. A design whose parts are all boxes describes nothing.
 - No manufacturer trademarks in the vehicle name.
 - rationale: name the specific trade and what it cost — thermal, downlink budget, launch volume, propellant. Concrete, not promotional.
 
