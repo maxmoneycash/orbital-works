@@ -17,7 +17,7 @@
   import { uiStore } from '../stores/ui.svelte';
   import { PART_BY_ID, CATS, analyze, validate, type Part } from '../data/spacecraft';
   import { buildPart, assemble } from '../data/spacecraft-geometry';
-  import { makeSpaceEnvironment, configureRenderer, addSpacecraftLighting } from '../scene/spacecraft-render';
+  import { makeSpaceEnvironment, configureRenderer, addSpacecraftLighting, makeGlintComposer } from '../scene/spacecraft-render';
   import { customToPart, SENTINEL, type Design } from '../data/design-parts';
   import { encodeDesign, decodeDesign } from '../data/design-share';
   import { loadHistory, saveDesign, removeDesign, type HistoryEntry } from '../data/design-history';
@@ -48,7 +48,7 @@
   let tab = $state<Tab>('summary');
   let dims = $state<[number, number, number] | null>(null);
   let shareLabel = $state('Share');
-  let history = $state<HistoryEntry[]>([]);
+  let savedDesigns = $state<HistoryEntry[]>([]);
   let timer: ReturnType<typeof setInterval> | null = null;
   let shareTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -62,7 +62,9 @@
     const encoded = new URLSearchParams(location.search).get('d');
     if (!encoded) return;
     const incoming = await decodeDesign(encoded);
-    history.replaceState(null, '', location.pathname);
+    // window.history explicitly: a local named `history` silently shadows the
+    // global and turns this into a TypeError that kills every share link.
+    window.history.replaceState(null, '', location.pathname);
     if (!incoming) {
       error = 'That share link is malformed or from an older version.';
       uiStore.designerOpen = true;
@@ -70,7 +72,7 @@
     }
     design = incoming;
     dropped = 0;
-    history = saveDesign(incoming);
+    savedDesigns = saveDesign(incoming);
     track('design_opened_from_link', { mission: incoming.missionClass });
     brief = `${incoming.missionClass} — shared design`;
     tab = 'summary';
@@ -218,7 +220,7 @@
       dropped = data.dropped || 0;
       refine = '';
       tab = 'summary';
-      history = saveDesign(design);
+      savedDesigns = saveDesign(design);
       track('design_generated', {
         mission: design.missionClass,
         revision: Boolean(instruction),
@@ -258,6 +260,7 @@
     renderer.domElement.style.cursor = 'grab';
 
     addSpacecraftLighting(scene);
+    const glint = makeGlintComposer(renderer, scene, camera);
 
     // One-metre reference grid, so the vehicle has a sense of scale.
     const grid = new THREE.GridHelper(20, 20, 0x2b4256, 0x1b2b38);
@@ -282,6 +285,7 @@
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      glint?.setSize(w, h);
     };
     resize();
     S.ro = new ResizeObserver(resize);
@@ -363,7 +367,7 @@
         S.dist * Math.sin(S.phi) * Math.cos(S.theta),
       );
       camera.lookAt(0, 0, 0);
-      renderer.render(scene, camera);
+      if (glint) glint.composer.render(); else renderer.render(scene, camera);
     };
     tick();
   }
@@ -405,7 +409,7 @@
   $effect(() => {
     if (urlChecked) return;
     urlChecked = true;
-    history = loadHistory();
+    savedDesigns = loadHistory();
 
     /**
      * First visit opens the Designer. Landing on a fifteen-window tracking
@@ -495,17 +499,17 @@
         {/if}
       </div>
 
-      {#if history.length}
+      {#if savedDesigns.length}
         <div class="recent">
           <span class="rlbl">Your designs</span>
           <div class="rlist">
-            {#each history as h (h.id)}
+            {#each savedDesigns as h (h.id)}
               <div class="ritem" class:on={design?.name === h.design.name}>
                 <button class="ropen" onclick={() => openFromHistory(h)} title={h.design.blurb}>
                   <span class="rname">{h.design.name}</span>
                   <span class="rwhen">{relTime(h.savedAt)}</span>
                 </button>
-                <button class="rdel" title="Remove" onclick={() => (history = removeDesign(h.id))}>×</button>
+                <button class="rdel" title="Remove" onclick={() => (savedDesigns = removeDesign(h.id))}>×</button>
               </div>
             {/each}
           </div>

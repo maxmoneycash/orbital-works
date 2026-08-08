@@ -7,7 +7,56 @@
  */
 import * as THREE from 'three';
 import type { Part } from './spacecraft';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { solarCellMap, foilNormalMap, hullDetailMaps } from '../scene/spacecraft-render';
+
+/**
+ * Nothing in the physical world has a perfectly sharp 90-degree edge. A true
+ * sharp edge catches no light at all, which is the single loudest tell of
+ * amateur 3D — the eye reads it as "computer graphics" before it reads anything
+ * else. Every box on a spacecraft is a machined panel with a broken edge, and a
+ * bevel that only needs to be a millimetre wide is enough to catch a highlight
+ * and sell the whole surface.
+ */
+function roundedBox(w: number, h: number, d: number): THREE.BufferGeometry {
+  const min = Math.min(w, h, d);
+  // Radius has to stay under half the smallest dimension or the geometry
+  // degenerates; thin panels get a proportionally finer bevel.
+  const r = Math.max(0.002, Math.min(min * 0.16, 0.035));
+  return new RoundedBoxGeometry(w, h, d, 2, r);
+}
+
+/**
+ * Greebles: the small hardware that covers a real bus — connector blocks, cable
+ * clamps, bolt heads, bracket feet. Individually meaningless, collectively the
+ * difference between a prop and a machine. Deterministic from a seed so a given
+ * spacecraft looks the same on every render rather than shimmering between loads.
+ */
+function addGreebles(group: THREE.Group, w: number, d: number, y: number, seed: number, count = 14) {
+  const rnd = (i: number) => {
+    const n = Math.sin(seed * 37.1 + i * 91.7) * 43758.5453;
+    return n - Math.floor(n);
+  };
+  const bolt = mkMat('dark');
+  const brack = mkMat('shell');
+  for (let i = 0; i < count; i++) {
+    const kind = rnd(i * 3) > 0.62;
+    const sx = 0.02 + rnd(i * 3 + 1) * 0.05;
+    const sz = 0.02 + rnd(i * 3 + 2) * 0.05;
+    const sy = 0.008 + rnd(i * 5) * 0.022;
+    const m = kind
+      ? new THREE.Mesh(new THREE.CylinderGeometry(sx * 0.5, sx * 0.5, sy, 8), bolt)
+      : new THREE.Mesh(roundedBox(sx, sy, sz), brack);
+    m.position.set(
+      (rnd(i * 7) - 0.5) * w * 0.82,
+      y + sy / 2,
+      (rnd(i * 11) - 0.5) * d * 0.82,
+    );
+    m.castShadow = true;
+    m.receiveShadow = true;
+    group.add(m);
+  }
+}
 
 /* -------------------------------------------------------------- GEOMETRY -- */
 
@@ -23,7 +72,10 @@ const MATS: Record<string, any> = {
   // Black anodised / radiator faces. Dielectric coating, so not metal.
   dark:   { color: 0x14171b, rough: 0.55, metal: 0.15, env: 0.7, hull: true },
   // Photovoltaic cells under coverglass: dark, and glassy rather than matte.
-  solar:  { color: 0x1b3358, rough: 0.30, metal: 0.30, env: 0.85, map: 'solar' },
+  // White base: three.js multiplies `color` by `map`, so tinting a surface that
+  // already carries a colour texture darkens it twice. The cell map defines the
+  // colour; the material must not fight it.
+  solar:  { color: 0xffffff, rough: 0.22, metal: 0.30, env: 1.1, map: 'solar' },
   // Multi-layer insulation. Kapton over aluminium — a true metal, and crinkled.
   gold:   { color: 0xffc46b, rough: 0.30, metal: 1.0, env: 1.5, normal: 'foil' },
   // Bare copper waveguide and feed hardware.
@@ -88,7 +140,7 @@ export function buildPart(part: Part, busGeom: any): THREE.Group {
     bt = busGeom.t || busGeom.h || 0.2;
 
   const box = (w: number, h: number, d: number, mat: string) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mkMat(mat));
+    const m = new THREE.Mesh(roundedBox(w, h, d), mkMat(mat));
     return m;
   };
 
@@ -97,12 +149,38 @@ export function buildPart(part: Part, busGeom: any): THREE.Group {
       const m = box(gm.w, gm.t, gm.d, gm.mat);
       g.add(m);
       addEdges(g, m);
-      // stiffening ribs, purely to read as hardware
-      for (let i = -1; i <= 1; i++) {
-        const r = box(gm.w * 0.96, gm.t * 0.25, 0.04, "dark");
-        r.position.set(0, gm.t * 0.55, (i * gm.d) / 3.4);
-        g.add(r);
+
+      /**
+       * Real buses are wrapped in multi-layer insulation, and the wrap is
+       * quilted — held down on a grid so it puffs between the seams. Modelling
+       * it as slightly proud tiles with gaps gives the silhouette the broken,
+       * soft-edged look that photographs of actual spacecraft have, instead of
+       * one smooth slab.
+       */
+      const cols = Math.max(2, Math.round(gm.w / 0.6));
+      const rows = Math.max(2, Math.round(gm.d / 0.6));
+      const cw = (gm.w * 0.98) / cols, cd = (gm.d * 0.98) / rows;
+      const quiltMat = mkMat("gold");
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const q = new THREE.Mesh(roundedBox(cw * 0.9, gm.t * 0.34, cd * 0.9), quiltMat);
+          q.position.set(
+            -gm.w / 2 + cw * (c + 0.5),
+            gm.t * 0.55,
+            -gm.d / 2 + cd * (r + 0.5),
+          );
+          q.castShadow = true; q.receiveShadow = true;
+          g.add(q);
+        }
       }
+
+      // Stiffening ribs on the underside, where the launch loads actually go.
+      for (let i = -1; i <= 1; i++) {
+        const rib = box(gm.w * 0.96, gm.t * 0.3, 0.05, "shell");
+        rib.position.set(0, -gm.t * 0.55, (i * gm.d) / 3.4);
+        g.add(rib);
+      }
+      addGreebles(g, gm.w, gm.d, gm.t * 0.7, gm.w * 100 + gm.d, 18);
       break;
     }
     case "box": {
@@ -114,27 +192,64 @@ export function buildPart(part: Part, busGeom: any): THREE.Group {
     case "wing": {
       const sides = gm.sides || 1;
       const segL = gm.len / gm.panels;
+      const solarMat = mkMat("solar");
+      const frameMat = mkMat("shell");
+      const backMat = mkMat("dark");
+
       for (let s = 0; s < sides; s++) {
         const sign = s === 0 ? 1 : -1;
+
+        // Yoke: the arm carrying the array clear of the bus, on a drive.
         const boom = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.04, 0.04, gm.len, 8),
-          mkMat("white")
+          new THREE.CylinderGeometry(0.035, 0.045, 0.42, 12),
+          frameMat,
         );
         boom.rotation.z = Math.PI / 2;
-        boom.position.set(sign * (bw / 2 + gm.len / 2), 0, 0);
+        boom.position.set(sign * (bw / 2 + 0.21), 0, 0);
+        boom.castShadow = true;
         g.add(boom);
+
+        // Solar array drive — the motor the wing rotates on to track the sun.
+        const drive = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.11, 14), backMat);
+        drive.rotation.z = Math.PI / 2;
+        drive.position.set(sign * (bw / 2 + 0.05), 0, 0);
+        drive.castShadow = true;
+        g.add(drive);
+
         for (let i = 0; i < gm.panels; i++) {
-          const p = new THREE.Mesh(
-            new THREE.BoxGeometry(segL * 0.94, 0.02, gm.wid),
-            mkMat("solar")
-          );
-          p.position.set(
-            sign * (bw / 2 + segL * (i + 0.5)),
-            0,
-            0
-          );
-          g.add(p);
-          addEdges(g, p, 0x3f6ea8);
+          // Panels are discrete rigid substrates with a real gap and a hinge
+          // between them — a continuous strip is the giveaway that an array
+          // was modelled rather than observed.
+          const pw = segL * 0.88;
+          const x = sign * (bw / 2 + 0.42 + segL * i + segL * 0.5);
+
+          const cells = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.012, gm.wid * 0.94), solarMat);
+          cells.position.set(x, 0.012, 0);
+          cells.castShadow = true; cells.receiveShadow = true;
+          g.add(cells);
+
+          // Substrate behind the cells, and the frame around them.
+          const sub = new THREE.Mesh(roundedBox(pw, 0.014, gm.wid), backMat);
+          sub.position.set(x, 0, 0);
+          sub.castShadow = true; sub.receiveShadow = true;
+          g.add(sub);
+
+          for (const e of [-1, 1]) {
+            const rail = new THREE.Mesh(roundedBox(pw, 0.02, 0.022), frameMat);
+            rail.position.set(x, 0.004, e * (gm.wid / 2 - 0.011));
+            rail.castShadow = true;
+            g.add(rail);
+          }
+
+          // Hinge between this panel and the next.
+          if (i < gm.panels - 1) {
+            const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, gm.wid * 0.8, 8), frameMat);
+            hinge.rotation.x = Math.PI / 2;
+            hinge.position.set(x + sign * segL * 0.5, 0, 0);
+            hinge.castShadow = true;
+            g.add(hinge);
+          }
+          addEdges(g, cells, 0x3f6ea8);
         }
       }
       break;
@@ -185,12 +300,32 @@ export function buildPart(part: Part, busGeom: any): THREE.Group {
         const spread = (gm.count - 1) * 0.55;
         d.position.set(-spread / 2 + i * 0.55, 0, 0);
         g.add(d);
-        const stem = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.03, 0.03, gm.r * 0.9, 6),
-          mkMat("dark")
+        // Feed horn suspended on a tripod over the dish — the detail that makes
+        // a reflector read as an antenna rather than as a bowl.
+        const feed = new THREE.Mesh(
+          new THREE.ConeGeometry(gm.r * 0.15, gm.r * 0.3, 12, 1, true),
+          mkMat("copper"),
         );
-        stem.position.set(d.position.x, gm.r * 0.45, 0);
-        g.add(stem);
+        feed.position.set(d.position.x, gm.r * 0.62, 0);
+        feed.rotation.x = Math.PI;
+        feed.castShadow = true;
+        g.add(feed);
+        for (let k = 0; k < 3; k++) {
+          const a = (k / 3) * Math.PI * 2;
+          const strut = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.008, 0.008, gm.r * 0.78, 6),
+            mkMat("white"),
+          );
+          strut.position.set(
+            d.position.x + Math.cos(a) * gm.r * 0.34,
+            gm.r * 0.34,
+            Math.sin(a) * gm.r * 0.34,
+          );
+          strut.rotation.z = Math.cos(a) * 0.42;
+          strut.rotation.x = -Math.sin(a) * 0.42;
+          strut.castShadow = true;
+          g.add(strut);
+        }
       }
       break;
     }

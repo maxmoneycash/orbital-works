@@ -9,7 +9,7 @@
     FLEET, PART_BY_ID, CATS, analyze, type Part,
   } from '../data/spacecraft';
   import { buildPart, assemble } from '../data/spacecraft-geometry';
-  import { makeSpaceEnvironment, configureRenderer, addSpacecraftLighting } from '../scene/spacecraft-render';
+  import { makeSpaceEnvironment, configureRenderer, addSpacecraftLighting, makeGlintComposer } from '../scene/spacecraft-render';
 
   function guessCraft(name: string): string {
     const n = name.toUpperCase();
@@ -64,6 +64,7 @@
     renderer.domElement.style.cursor = 'grab';
 
     addSpacecraftLighting(scene);
+    const glint = makeGlintComposer(renderer, scene, camera);
 
     const model = new THREE.Group();
     scene.add(model);
@@ -81,6 +82,7 @@
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      glint?.setSize(w, h);
     };
     resize();
     S.ro = new ResizeObserver(resize);
@@ -133,7 +135,7 @@
         S.dist * Math.sin(S.phi) * Math.cos(S.theta),
       );
       camera.lookAt(0, 0, 0);
-      renderer.render(scene, camera);
+      if (glint) glint.composer.render(); else renderer.render(scene, camera);
     };
     tick();
   }

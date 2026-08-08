@@ -16,6 +16,10 @@
  * budget is already the app's weak point, and a 2 kB canvas beats a 2 MB PNG.
  */
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 /**
  * The light a spacecraft in low Earth orbit actually sits in: one brutally
@@ -138,7 +142,7 @@ export function solarCellMap(): THREE.Texture {
   c.width = c.height = S;
   const g = c.getContext('2d')!;
 
-  g.fillStyle = '#0f1b33';
+  g.fillStyle = '#1d2f52';
   g.fillRect(0, 0, S, S);
 
   const cells = 8;
@@ -147,11 +151,11 @@ export function solarCellMap(): THREE.Texture {
     for (let x = 0; x < cells; x++) {
       // Slight per-cell variation so the array doesn't read as a printed decal.
       const v = 0.86 + ((x * 7 + y * 13) % 5) * 0.03;
-      g.fillStyle = `rgb(${Math.round(20 * v)}, ${Math.round(38 * v)}, ${Math.round(84 * v)})`;
+      g.fillStyle = `rgb(${Math.round(38 * v)}, ${Math.round(66 * v)}, ${Math.round(140 * v)})`;
       g.fillRect(x * cell + 1.5, y * cell + 1.5, cell - 3, cell - 3);
 
       // Busbars: two fine silver lines per cell.
-      g.strokeStyle = 'rgba(190, 210, 235, 0.34)';
+      g.strokeStyle = 'rgba(205, 222, 245, 0.5)';
       g.lineWidth = 1;
       for (const f of [0.34, 0.66]) {
         g.beginPath();
@@ -292,4 +296,43 @@ export function hullDetailMaps(): { normal: THREE.Texture; roughness: THREE.Text
   _hullRough = new THREE.CanvasTexture(rc);
   _hullRough.wrapS = _hullRough.wrapT = THREE.RepeatWrapping;
   return { normal: _hullNormal, roughness: _hullRough };
+}
+
+/**
+ * Sun glint.
+ *
+ * Photographs of hardware in orbit bloom hard off metal, because the sun is
+ * unfiltered and the dynamic range is enormous. Rendering specular highlights
+ * that stop politely at white is a large part of why CG spacecraft look like
+ * CG. A tight bloom with a high threshold only touches the few pixels that are
+ * genuinely blown out — foil creases, panel edges, the feed horn — and leaves
+ * the body of the object alone.
+ *
+ * Returns a composer to render with instead of the raw renderer, plus a resize
+ * hook. Null if the browser cannot support it, in which case the caller falls
+ * back to rendering directly and simply loses the glint.
+ */
+export function makeGlintComposer(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+): { composer: EffectComposer; setSize: (w: number, h: number) => void } | null {
+  try {
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.55, 0.78);
+    composer.addPass(bloom);
+    // Tone mapping and colour conversion move to the end of the chain once a
+    // composer is in play; without this the image comes out washed out.
+    composer.addPass(new OutputPass());
+    return {
+      composer,
+      setSize: (w, h) => {
+        composer.setSize(w, h);
+        bloom.setSize(w, h);
+      },
+    };
+  } catch {
+    return null;
+  }
 }
