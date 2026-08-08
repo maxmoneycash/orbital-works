@@ -49,6 +49,15 @@
   let dims = $state<[number, number, number] | null>(null);
   let shareLabel = $state('Share');
   let savedDesigns = $state<HistoryEntry[]>([]);
+  /**
+   * True while the on-screen design came from someone else's share link. A
+   * visitor arriving that way is at the single highest-intent moment this app
+   * gets — they are looking at a finished spacecraft someone thought worth
+   * sending. Converting them into a maker there is worth more than any other
+   * prompt in the product, so that state is tracked explicitly.
+   */
+  let fromShare = $state(false);
+  let refineEl = $state<HTMLInputElement | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
   let shareTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -74,7 +83,8 @@
     dropped = 0;
     savedDesigns = saveDesign(incoming);
     track('design_opened_from_link', { mission: incoming.missionClass });
-    brief = `${incoming.missionClass} — shared design`;
+    fromShare = true;
+    brief = incoming.missionClass;
     tab = 'summary';
     uiStore.designerOpen = true;
     uiStore.designerFocus++;
@@ -83,6 +93,7 @@
   function openFromHistory(entry: HistoryEntry) {
     design = entry.design;
     dropped = 0;
+    fromShare = false;
     error = null;
     selected = null;
     hovered = null;
@@ -99,6 +110,29 @@
     const h = Math.round(m / 60);
     return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
   };
+
+  /**
+   * Suggestions rather than a blank box. A visitor who has just arrived has no
+   * vocabulary for this domain yet, and "what would you change?" against an
+   * empty field converts far worse than three concrete edits they can tap.
+   */
+  const REMIX_IDEAS = [
+    'Make it cheaper to launch',
+    'Add laser crosslinks',
+    'Improve the resolution',
+    'Fly it in a lower orbit',
+  ];
+
+  function remix(idea?: string) {
+    fromShare = false;
+    track('design_remixed', { mission: design?.missionClass, seeded: Boolean(idea) });
+    if (idea) {
+      refine = idea;
+      generate(idea);
+      return;
+    }
+    refineEl?.focus();
+  }
 
   async function share() {
     if (!design) return;
@@ -220,6 +254,7 @@
       dropped = data.dropped || 0;
       refine = '';
       tab = 'summary';
+      fromShare = false;
       savedDesigns = saveDesign(design);
       track('design_generated', {
         mission: design.missionClass,
@@ -529,6 +564,19 @@
       {/if}
 
       {#if design}
+        {#if fromShare}
+          <div class="shared">
+            <div class="shead">Someone shared this spacecraft with you</div>
+            <p class="sbody">Change anything and it becomes yours — the physics is re-checked either way.</p>
+            <div class="sideas">
+              {#each REMIX_IDEAS as idea}
+                <button class="sidea" onclick={() => remix(idea)} disabled={busy}>{idea}</button>
+              {/each}
+              <button class="sidea own" onclick={() => remix()} disabled={busy}>Something else…</button>
+            </div>
+          </div>
+        {/if}
+
         <div class="head">
           <b>{design.name}</b>
           <span class="op">{design.operator}</span>
@@ -655,6 +703,7 @@
 
         <div class="refine">
           <input
+            bind:this={refineEl}
             bind:value={refine}
             placeholder="Revise it — “halve the mass”, “add laser crosslinks”"
             maxlength="200"
@@ -755,6 +804,24 @@
     background: var(--card-bg); padding: 6px; border: 1px solid var(--border);
   }
   @media (prefers-reduced-motion: reduce) { .pulse { animation: none; opacity: .7; } }
+
+  /* Only ever shown to someone who arrived on another person's link. It is the
+     one place in the app where a hard call to action is warranted. */
+  .shared {
+    padding: 9px 8px 10px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  .shead { font-size: 10.5px; color: var(--accent); letter-spacing: .02em; }
+  .sbody { font-size: 10px; line-height: 1.5; color: var(--text-dim); margin: 3px 0 7px; }
+  .sideas { display: flex; flex-wrap: wrap; gap: 4px; }
+  .sidea {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); font: inherit; font-size: 9.5px; padding: 4px 7px; cursor: pointer;
+  }
+  .sidea:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .sidea:disabled { opacity: .45; cursor: default; }
+  .sidea.own { color: var(--text-ghost); }
 
   .head { display: flex; align-items: baseline; gap: 8px; padding: 8px 8px 2px; }
   .head b { font-size: 14px; }

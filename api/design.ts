@@ -62,6 +62,7 @@ DESIGN RULES
 - Reach for the hardware that makes the mission legible rather than defaulting to boxes: a propellant tank ("tank") for anything with real delta-v, a lattice "boom" for a deployed SAR antenna, magnetometer or gravity-gradient mast, a "radiator" wherever a high-power payload must reject heat, a "horn" for a comms feed, a "telescope" for optical or infrared imaging. A design whose parts are all boxes describes nothing.
 - No manufacturer trademarks in the vehicle name.
 - rationale: name the specific trade and what it cost — thermal, downlink budget, launch volume, propellant. Concrete, not promotional.
+- If a requested revision is physically impossible — a payload that cannot shrink to the mass asked for, an aperture that cannot fit the volume — do NOT reply with prose explaining why. Return the JSON, having taken the change as far as the physics allows, and say plainly in the rationale what could not be done and what it would cost to do it. Prose instead of JSON reaches the user as a crash, so disagreement belongs in the rationale field, never in place of the object.
 
 Return ONLY minified JSON. No prose, no markdown fence.
 {"name":"","operator":"","missionClass":"","altKm":0,"incDeg":0,"blurb":"","rationale":"","libraryParts":["catalogue-id"],"customParts":[{"id":"","name":"","cat":"","slot":"","dir":"","mass":0,"power":0,"spec":"","note":"","geom":{"kind":"","mat":""},"area":0,"downlink":0}]}`;
@@ -178,7 +179,22 @@ export default {
             controller.enqueue(encoder.encode(delta));
           }
 
-          const parsed = DesignSchema.safeParse(extractJson(full));
+          // A model that pushed back in prose produces no object at all. That is
+          // a meaningful outcome — usually the revision was impossible — and it
+          // deserves the model's own words rather than a parser error.
+          let parsedJson: unknown;
+          try {
+            parsedJson = extractJson(full);
+          } catch {
+            const reason = full.trim().replace(/\s+/g, ' ').slice(0, 220);
+            return finish({
+              error: reason
+                ? `That change may not be physically possible. The model said: "${reason}…"`
+                : 'The model returned no design. Try rewording the change.',
+            });
+          }
+
+          const parsed = DesignSchema.safeParse(parsedJson);
           if (!parsed.success) {
             return finish({
               error: 'The design came back malformed. Try rewording the brief.',
