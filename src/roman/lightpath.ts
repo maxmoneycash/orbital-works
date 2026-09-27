@@ -84,11 +84,18 @@ export class LightPath {
       return [p0, p1, p2, spread(th, 0.07, hole)];
     };
 
+    let seed = 7;
+    const jitter = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2.6;
     const addRay = (pts: THREE.Vector3[], trail: LineMaterial, pulse: LineMaterial, into: THREE.Group) => {
+      const flat = (list: THREE.Vector3[]) => list.flatMap((p) => [p.x, p.y, p.z]);
       const geo = new LineGeometry();
-      geo.setPositions(pts.flatMap((p) => [p.x, p.y, p.z]));
-      for (const m of [trail, pulse]) {
-        const line = new Line2(geo, m);
+      geo.setPositions(flat(pts));
+      // The photon stream gets a random lead-in above the aperture, so the
+      // dashes, driven by one shared uniform, fall out of step ray to ray.
+      const pgeo = new LineGeometry();
+      pgeo.setPositions(flat([pts[0].clone().setY(pts[0].y + jitter()), ...pts]));
+      for (const [g, m] of [[geo, trail], [pgeo, pulse]] as const) {
+        const line = new Line2(g, m);
         line.computeLineDistances();
         line.renderOrder = 10;
         line.frustumCulled = false;
@@ -156,10 +163,13 @@ export class LightPath {
     const complete = progress >= this.length - 0.02;
     const period = 2.6;
     this.pulseS = (this.pulseS + dt * 3.4) % period;
+    // While revealing, the trail's own leading edge is the front; photons
+    // stream only once the path is complete.
     for (const m of [this.pulse, this.cgiPulse]) {
+      m.visible = complete;
       m.dashSize = 0.4;
-      m.gapSize = complete ? period - 0.4 : 1e5;
-      m.dashOffset = complete ? -this.pulseS : -(progress - 0.4);
+      m.gapSize = period - 0.4;
+      m.dashOffset = -this.pulseS;
     }
   }
 

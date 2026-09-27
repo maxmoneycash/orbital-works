@@ -337,10 +337,10 @@ export class RomanStage {
       into.add(l);
     };
     // Rays ending on the shield's plane (z ≈ 2.6), spread over its face.
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 5; i++) {
       for (let j = 0; j < 4; j++) {
-        const end = new THREE.Vector3(-1.9 + i * 0.63, 3.0 + j * 1.25, 2.7);
-        line(end.clone().addScaledVector(SUN_DIR, 16), end, sun, sunGroup);
+        const end = new THREE.Vector3(-1.8 + i * 0.9, 3.0 + j * 1.25, 2.72);
+        line(end.clone().addScaledVector(SUN_DIR, 7), end, sun, sunGroup);
       }
     }
     group.add(sunGroup, beamGroup);
@@ -401,15 +401,30 @@ export class RomanStage {
       case 'deploy':
         return { target: mid.clone().setY(6.2), dist: this.fitDist(9, 14.5, 0.86), theta: 0.45, phi: 1.34 };
       case 'thermal':
-        return { target: mid.clone().setY(5.8), dist: this.fitDist(9, 14, 0.8), theta: 1.95, phi: 1.36 };
-      case 'comms':
-        return { target: new THREE.Vector3(1.2, 2.2, 0.4), dist: this.fitDist(5, 5, 0.7), theta: 1.35, phi: 1.1 };
+        // Side-on to the Sun, which arrives from screen right: the shield
+        // edge-on in front, the telescope in its shade behind.
+        return this.shift({ target: mid.clone().setY(5.9), dist: this.fitDist(10, 14, 0.8), theta: -1.17, phi: 1.4 }, portrait ? 0 : 0.12, 0);
+      case 'comms': {
+        const dish = m?.byPart.get('HGA.Dish');
+        const c = dish ? boundsOf([dish]).getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0.9, 2.3);
+        return this.shift({ target: c.setY(c.y + 0.9), dist: this.fitDist(6.5, 6, 0.8), theta: -0.95, phi: 1.22 }, portrait ? 0 : 0.1, 0);
+      }
       case 'explore':
         return { target: mid.clone(), dist: this.fitDist(9, 17, 0.82), theta: 0.8, phi: 1.3 };
       case 'overview':
       default:
         return { target: mid.clone(), dist: this.fitDist(4.6, LENGTH, portrait ? 0.78 : 0.86), theta: 0.8, phi: 1.3 };
     }
+  }
+
+  /** Slide a pose's subject across the screen by fractions of the view. */
+  shift(p: Pose, fx: number, fy: number): Pose {
+    const cam = this.poseCamera(p);
+    const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
+    const visH = 2 * p.dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
+    p.target.addScaledVector(right, -fx * visH * this.aspect).addScaledVector(up, -fy * visH);
+    return p;
   }
 
   /** Frame a subsystem or a single part. */
@@ -698,7 +713,7 @@ export class RomanStage {
       const pn = part ?? '';
       const gone = this.hidden.has(sub) || this.hiddenParts.some((p) => pn.startsWith(p))
         || (this.solo !== null && !this.solo.some((p) => pn.startsWith(p)));
-      const goal = gone ? 0 : inFocus ? 1 : 0.075;
+      const goal = gone ? 0 : inFocus ? 1 : 0.1;
       const a = mesh.userData.alpha ?? 1;
       const next = damp(a, goal, 5, dt);
       mesh.userData.alpha = next;

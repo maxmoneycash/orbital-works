@@ -7,7 +7,7 @@
  * is as of late September 2026.
  */
 
-export interface Stat { value: string; label: string }
+export interface Stat { value: string; sup?: string; label: string }
 export interface Chapter {
   id: 'sky' | 'focal' | 'light' | 'coronagraph' | 'deploy' | 'thermal' | 'power' | 'explore';
   nav: string;
@@ -60,7 +60,7 @@ export const CHAPTERS: Chapter[] = [
       'Inside, two deformable mirrors, each with more than 1,600 actuators, reshape the light to carve a dark hole in a star’s glare, deep enough to reveal planets ten million times fainter than it.',
     ],
     stats: [
-      { value: '10⁻⁷', label: 'contrast required' },
+      { value: '10', sup: '−7', label: 'contrast required' },
       { value: '1,600+', label: 'actuators per deformable mirror' },
     ],
     next: 'How it unfolded',

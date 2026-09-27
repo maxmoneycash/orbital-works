@@ -60,7 +60,8 @@ export const partOf = (o: THREE.Object3D | null): string | null => {
  * lines is what makes it read as Roman's array rather than anyone's.
  */
 function solarCells(): THREE.Texture {
-  const S = 512, cols = 10, rows = 7, gap = 5;
+  // 3,902 cells over six panels is ~650 each: 16 x 12 cells, repeated 2 x 2.
+  const S = 512, cols = 16, rows = 12, gap = 3;
   const c = document.createElement('canvas');
   c.width = c.height = S;
   const g = c.getContext('2d')!;
@@ -72,13 +73,15 @@ function solarCells(): THREE.Texture {
       const v = 11 + ((x * 7 + y * 5) % 4);
       g.fillStyle = `rgb(${v},${v + 3},${v + 16})`;
       g.beginPath();
-      g.roundRect(gap + x * cw, gap + y * ch, cw - gap, ch - gap, 5);
+      g.roundRect(gap + x * cw, gap + y * ch, cw - gap, ch - gap, 3);
       g.fill();
     }
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(2, 2);
   return t;
 }
 

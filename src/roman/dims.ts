@@ -32,8 +32,11 @@ export function num(name: string): number {
 
 export interface Fact { label: string; value: string; tag: Tag; note?: string }
 
-const trim = (n: number, digits: number) =>
-  n.toFixed(digits).replace(/\.?0+$/, '') || '0';
+/** Fixed digits without trailing zeros — but only after a decimal point: 40 stays 40. */
+const trim = (n: number, digits: number) => {
+  const s = n.toFixed(digits);
+  return s.includes('.') ? s.replace(/\.?0+$/, '') : s;
+};
 
 /** A fact straight from the store: `fact('Mirror diameter', 'PM_DIA', 'm', 2)`. */
 export function fact(label: string, name: string, unit = '', digits = 2, scale = 1): Fact {
@@ -44,7 +47,8 @@ export function fact(label: string, name: string, unit = '', digits = 2, scale =
     : typeof d.value === 'number' && (name.endsWith('_GIMBALLED') || name === 'DAC_MEMBRANE' || name === 'SCRAPERS')
       ? (d.value ? 'yes' : 'no')
       : fmt(d.value);
-  return { label, value: unit ? `${value} ${unit}` : value, tag: d.tag, note: d.note };
+  const joined = !unit ? value : unit === '°' ? `${value}°` : `${value} ${unit}`;
+  return { label, value: joined, tag: d.tag, note: d.note };
 }
 
 /** A fact the store does not hold (a count or claim from a cited source). */

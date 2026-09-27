@@ -66,7 +66,12 @@
     s.autorotate = false;
     s.onPick = (hit) => pick(hit);
     s.onHover = (hit) => onHover(hit);
-    s.onResize = () => { if (status === 'ready' && (ch.id === 'sky' || skyOn)) prepareSky(); };
+    // Repainting the field is ~100 ms; wait for the resize to settle.
+    let resizeTimer = 0;
+    s.onResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => { if (status === 'ready' && (ch.id === 'sky' || skyOn)) prepareSky(); }, 180);
+    };
     s.onFrame = frame;
     s.ready.then(async () => {
       if (stage !== s) return;
@@ -217,8 +222,14 @@
         s.cutGoal = 1;
         s.hiddenParts = ['WFI.Body'];
         s.lightGoal = { progress: s.light!.length, opacity: 1, cgi: true };
-        s.focus = new Set(['TEL.TertiaryCollimatorAssembly', 'CORONAGRAPH_INSTRUMENT', 'TEL.AftOpticsModule', 'TEL.PrimaryMirrorAssembly']);
-        await s.fly([s.shot('coronagraph')], first ? 0 : 2.6);
+        // Ghost everything but the coronagraph's path, and open the collimator
+        // module's housing so its three mirrors and the tip/tilt flat show.
+        s.focus = new Set(['TEL.TertiaryCollimatorAssembly', 'CORONAGRAPH_INSTRUMENT']);
+        s.hiddenParts = ['WFI.Body', 'TOMA.Structure'];
+        const cgiMeshes = [...(m.bySubsystem.get('TEL.TertiaryCollimatorAssembly') ?? []), ...(m.bySubsystem.get('CORONAGRAPH_INSTRUMENT') ?? [])];
+        const shot = s.shotOf(cgiMeshes, around(new THREE.Vector3(), 1, -1.15, 1.2));
+        shot.dist *= 1.35;
+        await s.fly([shot], first ? 0 : 2.6);
         if (alive()) tags = s.light!.cgiStops.map((st, k) => ({ text: st.label, at: s.light!.cgiStopPoints[k].clone() }));
         break;
       }
@@ -227,7 +238,8 @@
         await s.fly([s.shot('deploy')], first ? 0 : 2.4);
         if (!alive()) return;
         setDeploy(0);
-        await wait(reducedMotion ? 0 : 1300);
+        // Hold the launch configuration long enough to read it.
+        await wait(reducedMotion ? 0 : 2200);
         if (alive()) playDeploy(token);
         break;
       }
@@ -363,6 +375,9 @@
     selPart = null;
     s.selectedPart = null;
     s.selectedSubsystem = selSub;
+    // Anything inside the barrel is out of sight from outside it: section the
+    // shells so framing the part actually shows it.
+    if (selSub && ch.id === 'explore' && INSIDE.has(selSub)) cutaway = true;
     if (selSub) {
       const meshes = s.model.bySubsystem.get(selSub) ?? [];
       if (meshes.length) s.fly([s.shotOf(meshes)], 1.6);
@@ -430,6 +445,12 @@
     EST: 'Estimated; not yet grounded in a source',
   };
   const TAGS: Tag[] = ['PUB', 'DER', 'EST'];
+  /** Subsystems hidden inside the barrel or the instrument bay. */
+  const INSIDE = new Set([
+    'TEL.PrimaryMirrorAssembly', 'TEL.SecondaryMirrorAssembly', 'TEL.AftOpticsModule',
+    'TEL.TertiaryCollimatorAssembly', 'TEL.ForwardStructureAssembly', 'TEL.Interfaces',
+    'WIDE_FIELD_INSTRUMENT', 'CORONAGRAPH_INSTRUMENT', 'INSTRUMENT_CARRIER', 'TEL.TelescopeControlElectronics',
+  ]);
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -474,7 +495,7 @@
     <h1>Nancy Grace Roman<br />Space Telescope</h1>
     <p class="status">
       <span class="dot" aria-hidden="true"></span>
-      Launched 30 August 2026 · day {missionDay} · commissioning on the way to L2
+      <span>Launched 30 August 2026 · day {missionDay}<span class="long"> · commissioning on the way to L2</span></span>
     </p>
   </header>
 
@@ -485,7 +506,7 @@
       </div>
       <span>{grounded} of {PROVENANCE_TOTAL} dimensions published or derived</span>
     </div>
-    <button class="exit" onclick={enterTracker}>Enter the tracker <span aria-hidden="true">→</span></button>
+    <button class="exit" onclick={enterTracker}><span class="long">Enter the </span>tracker <span aria-hidden="true">→</span></button>
   </div>
 
   {#if status !== 'ready'}
@@ -529,7 +550,7 @@
 
       {#if ch.stats}
         <dl class="stats">
-          {#each ch.stats as st}<div><dt>{st.label}</dt><dd>{st.value}</dd></div>{/each}
+          {#each ch.stats as st}<div><dt>{st.label}</dt><dd>{st.value}{#if st.sup}<sup>{st.sup}</sup>{/if}</dd></div>{/each}
         </dl>
       {/if}
 
@@ -748,6 +769,7 @@
   .stats div { display: grid; gap: 2px; }
   .stats dd { margin: 0; order: -1; font-size: 24px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
   .stats dt { font-size: 11px; color: var(--ink-3); }
+  .stats sup { font-size: 0.55em; margin-left: 1px; vertical-align: 0.85em; line-height: 0; }
 
   .next {
     margin-top: 18px; display: inline-flex; gap: 10px; align-items: center; cursor: pointer;
@@ -867,11 +889,18 @@
   .arrow:hover:not(:disabled) { border-color: var(--ink); }
   .arrow:disabled { opacity: 0.3; cursor: default; }
 
+  @media (prefers-reduced-motion: reduce) {
+    .copy, .index, .inspector, .foot > polygon { animation: none; }
+    .sky, .rail li button::after, .next { transition: none; }
+    .dot, .pulse { animation: none; }
+  }
+
   /* --- phones -------------------------------------------------------------- */
   @media (max-width: 767px) {
     .mast { left: 16px; top: 14px; max-width: calc(100vw - 150px); }
     .mast h1 { font-size: 16px; }
     .status { font-size: 10.5px; margin-top: 6px; }
+    .long { display: none; }
     .top-right { right: 14px; top: 14px; gap: 10px; }
     .prov { display: none; }
     .exit { padding: 7px 10px; font-size: 11px; }

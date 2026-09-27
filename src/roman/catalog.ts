@@ -96,7 +96,7 @@ export const SUBSYSTEMS: Subsystem[] = [
   S('CORONAGRAPH_INSTRUMENT', 'Coronagraph', 'Instruments',
     'A technology demonstration for photographing planets beside their stars: two deformable mirrors reshape the light thousands of times a second to dig a dark hole in the star’s glare, and a photon-counting detector records what is left. It powered on 1 September 2026.',
     [stated('Deformable mirrors', '2, each 1,600+ actuators', 'PUB', 'roman.gsfc.nasa.gov/interactive'),
-     stated('Contrast requirement', '10⁻⁷', 'PUB', 'arxiv.org/abs/2309.08672'),
+     stated('Contrast requirement', 'one in ten million', 'PUB', 'arxiv.org/abs/2309.08672'),
      stated('Detector', 'EMCCD, photon counting', 'PUB', 'roman.gsfc.nasa.gov/interactive')]),
   S('INSTRUMENT_CARRIER', 'Instrument carrier', 'Instruments',
     'Meters the telescope to both science instruments and holds their alignment.',

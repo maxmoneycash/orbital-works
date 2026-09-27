@@ -11,6 +11,23 @@ they will be. Then it lets you open the spacecraft up and close the link.
 
 ## What's in it
 
+**Roman Space Telescope.** The app opens on NASA's Nancy Grace Roman Space
+Telescope, launched 30 August 2026. It starts on the sky Roman surveys, with
+its eighteen detectors drawn to scale beside Hubble's infrared camera; pulls
+back until the outlines become the 3D focal plane with that sky still on the
+chips; flies out along the light through all five reflections; then walks
+through the coronagraph, the deployment sequence as flown, the thermal design
+and the downlink, and ends in a free exploration of all 167 parts, with
+exploded, cutaway and launch-configuration views.
+
+The model is a reconstruction from public sources, not CAD, and says so: every
+number on screen comes from a dimension store that tags it published, derived
+from published figures, or estimated, and two unresolved source conflicts are
+shown where they apply. It is built headlessly in Blender from
+`scripts/roman/` (`npm run roman:glb`; `npm run roman:test` for the checks),
+with a QC pass that measures the built meshes against NASA's published
+dimensions. `#tracker` in the URL goes straight to the tracker.
+
 **Tracking.** 3D globe with clouds, night lights, atmospheric scattering and
 terrain elevation. Orbit trails, ground tracks, footprints, apogee/perigee
 markers. Sky view for what's above you right now, and an orrery for the
@@ -115,6 +132,12 @@ Orbital Works is a modified version of
 [TLEscope](https://github.com/aweeri/TLEscope). The tracking engine, globe
 rendering, pass predictor and window system come from that lineage and remain
 under AGPL-3.0. See [NOTICE](NOTICE) for what was changed.
+
+Roman facts, photos consulted and deployment timeline: NASA
+([roman.gsfc.nasa.gov](https://roman.gsfc.nasa.gov/interactive/),
+[science.nasa.gov/mission/roman-space-telescope](https://science.nasa.gov/mission/roman-space-telescope/)),
+STScI and NTRS papers cited in `scripts/roman/roman_dims.py`. Not endorsed by NASA.
+Overpass Mono (SIL OFL 1.1).
 
 Textures: [NASA SVS CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/),
 [Solar System Scope](https://www.solarsystemscope.com/textures/).
