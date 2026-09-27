@@ -1,0 +1,671 @@
+{
+ "_generated": "scripts/roman/export_dims.py -- do not edit by hand",
+ "provenance": {
+  "EST": 53,
+  "PUB": 40,
+  "DER": 16,
+  "EST_INF": 2
+ },
+ "corrections": [
+  {
+   "topic": "hierarchy",
+   "text": "OBA and DAC were under Spacecraft; NASA files both under Telescope",
+   "sources": "[S6]"
+  },
+  {
+   "topic": "hierarchy",
+   "text": "TCE was modelled inside the bus; it is a Telescope subpart, though physically mounted on the spacecraft element per [S3] -- both are true",
+   "sources": "[S6][S3]"
+  },
+  {
+   "topic": "hierarchy",
+   "text": "'Spacecraft Bus' is properly Observatory Support Systems > Primary Structure",
+   "sources": "[S6]"
+  },
+  {
+   "topic": "SASS",
+   "text": "modelled as 2 splayed wings; it is SIX panels -- 2 centre fixed to the OBA, 4 outer hinged, folded down against the OBA for launch, swinging up to align in orbit",
+   "sources": "[S6][S7]"
+  },
+  {
+   "topic": "DAC",
+   "text": "modelled as a rigid solidified cone; it is SOFT MATERIAL on support booms -- a membrane visor",
+   "sources": "[S6]"
+  },
+  {
+   "topic": "LISS",
+   "text": "absent entirely; two deployable panels on the bus, each ~2.1 x 2.1 m and 0.076 m thick",
+   "sources": "[S6][S8]"
+  },
+  {
+   "topic": "HGA",
+   "text": "modelled as a fixed boom; the HGA is GIMBALLED and dual-band S-band 2 GHz / Ka-band 26 GHz",
+   "sources": "[S6]"
+  },
+  {
+   "topic": "OBA",
+   "text": "stand legs were plain vertical cylinders; OBA attaches to the upper deck of the primary structure via a series of struts that extend PAST the WFI and CGI",
+   "sources": "[S6]"
+  },
+  {
+   "topic": "OSS",
+   "text": "ACS, Propulsion, Power and C&DH are named subsystems and are all still unmodelled",
+   "sources": "[S6]"
+  },
+  {
+   "topic": "appearance",
+   "text": "barrel and bus blankets were rendered gold; NASA photos show silver-grey crinkled MLI outside and matte black inside the barrel",
+   "sources": "[S9]"
+  },
+  {
+   "topic": "SASS",
+   "text": "centre pair + four thin outer strips was still wrong: the photos show 3 columns x 2 rows, centre column fixed, outer columns hinged",
+   "sources": "[S9]"
+  },
+  {
+   "topic": "HGA",
+   "text": "0.6 m dish on a side boom; the press kit gives a 1.7 m dish, which cannot fit beside the bus inside 4.4 m -- now below the bus on a deploying boom, placement schematic",
+   "sources": "[S10]"
+  },
+  {
+   "topic": "WFI",
+   "text": "no element wheel; an 11-position wheel of filters, grism and prism sits in the beam just ahead of the detectors",
+   "sources": "[S12]"
+  },
+  {
+   "topic": "TOTAL_WIDTH",
+   "text": "the 4.40 m width is now read as the span across the sun shield. Read as a radius in every direction it had forced the LISS to 18 deg; that conflict dissolves, and the LISS angle is an honest EST",
+   "sources": "[S1]"
+  },
+  {
+   "topic": "SASS_HALF_SPAN",
+   "text": "derived from the assumption that the arrays are the widest thing on the observatory. NASA press copy describes each of six panels as ~7 x 10 m, which cannot coexist with a 4.4 m deployed width. UNRESOLVED -- one of the two figures is wrong.",
+   "sources": "[S1][S7]"
+  }
+ ],
+ "dims": {
+  "AMS_DIA": {
+   "value": 2.55,
+   "tag": "EST",
+   "note": "TODO: measure; must exceed PM_DIA to carry the bipods"
+  },
+  "AMS_THICK": {
+   "value": 0.28,
+   "tag": "PUB",
+   "note": "[S3] ribbed composite box-paneled Aft Metering Structure"
+  },
+  "AOM_BIPODS": {
+   "value": 3.0,
+   "tag": "PUB",
+   "note": "[S3] three bi-pod struts between AMS and Aft Optics Structure"
+  },
+  "AOM_BODY": {
+   "value": [
+    0.85,
+    0.7,
+    0.6
+   ],
+   "tag": "EST",
+   "note": "envelope packaging FM1/FM2/TM"
+  },
+  "AOM_FM1_ACTUATORS": {
+   "value": 3.0,
+   "tag": "PUB",
+   "note": "[S3] FM1 includes three actuators"
+  },
+  "AOM_FM1_BEAM": {
+   "value": 0.035,
+   "tag": "PUB",
+   "note": "[S3] Fold Mirror 1 beam footprint dia, m"
+  },
+  "AOM_FM2_BEAM": {
+   "value": 0.1,
+   "tag": "PUB",
+   "note": "[S3] Fold Mirror 2 beam footprint dia, m"
+  },
+  "AOM_FM2_BITE": {
+   "value": 1.0,
+   "tag": "PUB",
+   "note": "[S3] FM2 has a bite removed for WFI beam clearance"
+  },
+  "AOM_TM_BEAM": {
+   "value": 0.211,
+   "tag": "PUB",
+   "note": "[S3] Tertiary Mirror beam footprint dia, m"
+  },
+  "AOM_Z_BELOW_AMS": {
+   "value": 0.55,
+   "tag": "EST",
+   "note": ""
+  },
+  "BUS_ACROSS_CORNERS": {
+   "value": 2.9,
+   "tag": "EST",
+   "note": "hexagonal prism [S4]; must clear OBA and fit TOTAL_WIDTH"
+  },
+  "BUS_H": {
+   "value": 2.0,
+   "tag": "EST",
+   "note": "TODO: measure off glb"
+  },
+  "BUS_Z0": {
+   "value": 0.8,
+   "tag": "DER",
+   "note": "= LVA_Z0 + LVA_H"
+  },
+  "CGI_OFFSET": {
+   "value": [
+    -0.8,
+    -0.25
+   ],
+   "tag": "EST",
+   "note": ""
+  },
+  "CGI_SIZE": {
+   "value": [
+    0.95,
+    0.85,
+    1.22
+   ],
+   "tag": "EST",
+   "note": ""
+  },
+  "CGI_Z0": {
+   "value": 3.35,
+   "tag": "DER",
+   "note": "= IC_Z0 + IC_H; sits on the deck"
+  },
+  "DAC_BOOMS": {
+   "value": 3.0,
+   "tag": "EST",
+   "note": "boom count not published"
+  },
+  "DAC_BOOM_DIA": {
+   "value": 0.05,
+   "tag": "EST",
+   "note": ""
+  },
+  "DAC_DIA_BASE": {
+   "value": 3.95,
+   "tag": "DER",
+   "note": "~ OBA_DIA less clearance"
+  },
+  "DAC_DIA_TOP": {
+   "value": 3.1,
+   "tag": "EST",
+   "note": ""
+  },
+  "DAC_H_DEPLOYED": {
+   "value": 4.9,
+   "tag": "DER",
+   "note": "= TOTAL_LENGTH - DAC_Z0; closes the budget"
+  },
+  "DAC_H_STOWED": {
+   "value": 0.45,
+   "tag": "EST",
+   "note": ""
+  },
+  "DAC_MEMBRANE": {
+   "value": 1.0,
+   "tag": "PUB",
+   "note": "[S6] soft material on support booms"
+  },
+  "DAC_Z0": {
+   "value": 7.8,
+   "tag": "DER",
+   "note": "= OBA_Z0 + OBA_H"
+  },
+  "FMS_ALIGN_DRIVES": {
+   "value": 6.0,
+   "tag": "PUB",
+   "note": "[S3] six actuators driving six struts in hexapod"
+  },
+  "FMS_DIA": {
+   "value": 2.62,
+   "tag": "DER",
+   "note": "composite hoop on top of AMS, encircling the PM"
+  },
+  "FMS_H": {
+   "value": 0.22,
+   "tag": "EST",
+   "note": ""
+  },
+  "FOA_STRUTS": {
+   "value": 6.0,
+   "tag": "PUB",
+   "note": "[S3] six Forward Optical Assembly struts, bearings each end"
+  },
+  "FOA_STRUT_DIA": {
+   "value": 0.09,
+   "tag": "EST",
+   "note": ""
+  },
+  "HGA_BOOM_DIA": {
+   "value": 0.1,
+   "tag": "EST",
+   "note": ""
+  },
+  "HGA_BOOM_DOWN_DEG": {
+   "value": 38.0,
+   "tag": "EST",
+   "note": "deployed boom angle below the bus"
+  },
+  "HGA_BOOM_LEN": {
+   "value": 1.25,
+   "tag": "EST",
+   "note": "placement schematic; boom deploys after launch"
+  },
+  "HGA_DISH_DEPTH": {
+   "value": 0.26,
+   "tag": "EST",
+   "note": ""
+  },
+  "HGA_DISH_DIA": {
+   "value": 1.7,
+   "tag": "PUB",
+   "note": "[S10] 1.7 m carbon-composite dish, 10.9 kg"
+  },
+  "HGA_FEED_STRUTS": {
+   "value": 4.0,
+   "tag": "PUB",
+   "note": "[S11] test photo: four struts to a central feed"
+  },
+  "HGA_GIMBALLED": {
+   "value": 1.0,
+   "tag": "PUB",
+   "note": "[S6] gimbals allow multi-axis ground pointing"
+  },
+  "HGA_GIMBAL_DIA": {
+   "value": 0.22,
+   "tag": "EST",
+   "note": ""
+  },
+  "HGA_ROOT_Z": {
+   "value": 1.7,
+   "tag": "EST",
+   "note": "boom root height on the bus"
+  },
+  "HGA_STOWED_DEG": {
+   "value": -70.0,
+   "tag": "EST",
+   "note": "boom folded up against the bus for launch"
+  },
+  "IC_DIA": {
+   "value": 3.4,
+   "tag": "EST",
+   "note": ""
+  },
+  "IC_H": {
+   "value": 0.55,
+   "tag": "EST",
+   "note": ""
+  },
+  "IC_Z0": {
+   "value": 2.8,
+   "tag": "DER",
+   "note": ""
+  },
+  "LGA_DIA": {
+   "value": 0.14,
+   "tag": "EST",
+   "note": ""
+  },
+  "LISS_HINGE_GAP": {
+   "value": 0.1,
+   "tag": "EST",
+   "note": "standoff from the bus face"
+  },
+  "LISS_OPEN_DEG": {
+   "value": 28.0,
+   "tag": "EST",
+   "note": "not published; kept inside the SASS plane"
+  },
+  "LISS_PANELS": {
+   "value": 2.0,
+   "tag": "PUB",
+   "note": "[S6] two deployable panels on the bus"
+  },
+  "LISS_PANEL_H": {
+   "value": 2.1,
+   "tag": "PUB",
+   "note": "[S8] ~7 ft"
+  },
+  "LISS_PANEL_T": {
+   "value": 0.076,
+   "tag": "PUB",
+   "note": "[S8] 3 in, aluminium honeycomb sandwich"
+  },
+  "LISS_PANEL_W": {
+   "value": 2.1,
+   "tag": "PUB",
+   "note": "[S8] ~7 ft"
+  },
+  "LISS_Z0": {
+   "value": 1.1,
+   "tag": "EST",
+   "note": "attachment height on the bus"
+  },
+  "LVA_DIA_BOTTOM": {
+   "value": 2.6,
+   "tag": "EST",
+   "note": ""
+  },
+  "LVA_DIA_TOP": {
+   "value": 3.2,
+   "tag": "EST",
+   "note": ""
+  },
+  "LVA_H": {
+   "value": 0.8,
+   "tag": "EST",
+   "note": "TODO: Falcon Heavy PAF stack height"
+  },
+  "LVA_Z0": {
+   "value": 0.0,
+   "tag": "DER",
+   "note": "datum"
+  },
+  "OBA_DIA": {
+   "value": 4.0,
+   "tag": "PUB",
+   "note": "[S2] ~13.5 ft"
+  },
+  "OBA_H": {
+   "value": 5.0,
+   "tag": "PUB",
+   "note": "[S2] ~17 ft"
+  },
+  "OBA_VANE_W": {
+   "value": 0.35,
+   "tag": "EST",
+   "note": "radial width of each annular baffle vane"
+  },
+  "OBA_WALL": {
+   "value": 0.06,
+   "tag": "EST",
+   "note": ""
+  },
+  "OBA_Z0": {
+   "value": 2.8,
+   "tag": "DER",
+   "note": "= BUS_Z0 + BUS_H"
+  },
+  "PM_AREAL_DENSITY": {
+   "value": 40.0,
+   "tag": "PUB",
+   "note": "[S3] kg/m^2, ULE honeycomb core + facesheets"
+  },
+  "PM_BAFFLE_DIA": {
+   "value": 0.5,
+   "tag": "EST",
+   "note": "[S3] composite baffle AMS centre -> through PM centre"
+  },
+  "PM_BAFFLE_H": {
+   "value": 0.95,
+   "tag": "EST",
+   "note": ""
+  },
+  "PM_BIPODS": {
+   "value": 3.0,
+   "tag": "PUB",
+   "note": "[S3] PM sits on 3 bi-pod struts"
+  },
+  "PM_BIPOD_LEN": {
+   "value": 0.42,
+   "tag": "EST",
+   "note": ""
+  },
+  "PM_CONIC": {
+   "value": -1.0,
+   "tag": "EST_INF",
+   "note": "parabola stand-in. Roman is a TMA, not RC."
+  },
+  "PM_DIA": {
+   "value": 2.4,
+   "tag": "PUB",
+   "note": "[S1][S5] inherited, re-figured to RST prescription"
+  },
+  "PM_ROC": {
+   "value": 5.76,
+   "tag": "EST_INF",
+   "note": "assumes ~f/1.2 primary; R = 2f. NOT published."
+  },
+  "PM_Z": {
+   "value": 5.35,
+   "tag": "EST",
+   "note": "vertex height in stack; TODO measure off glb"
+  },
+  "POMA_MIRROR": {
+   "value": [
+    0.3,
+    0.2
+   ],
+   "tag": "EST",
+   "note": "[S3] flat OVAL mirror on the AMS"
+  },
+  "SASS_COLUMNS": {
+   "value": 3.0,
+   "tag": "PUB",
+   "note": "[S9] photos: 3 columns x 2 rows of panels"
+  },
+  "SASS_COL_W": {
+   "value": 1.4667,
+   "tag": "DER",
+   "note": "three coplanar columns spanning the published width"
+  },
+  "SASS_DEPLOY_PANELS": {
+   "value": 4.0,
+   "tag": "PUB",
+   "note": "[S7] outer, hinged, swing up in orbit"
+  },
+  "SASS_FIXED_PANELS": {
+   "value": 2.0,
+   "tag": "PUB",
+   "note": "[S7] centre pair, fixed to the OBA"
+  },
+  "SASS_FOLD_DEG": {
+   "value": 57.3,
+   "tag": "DER",
+   "note": "deepest fold before the column's edge meets the barrel"
+  },
+  "SASS_H": {
+   "value": 4.6,
+   "tag": "EST",
+   "note": ""
+  },
+  "SASS_HALF_SPAN": {
+   "value": 2.2,
+   "tag": "DER",
+   "note": "ASSUMES the arrays are the widest item -- see CORRECTIONS; NASA panel sizing conflicts with this"
+  },
+  "SASS_PANELS": {
+   "value": 6.0,
+   "tag": "PUB",
+   "note": "[S6][S7] six solar array panels"
+  },
+  "SASS_PANEL_T": {
+   "value": 0.05,
+   "tag": "EST",
+   "note": ""
+  },
+  "SASS_ROWS": {
+   "value": 2.0,
+   "tag": "PUB",
+   "note": "[S9] photos: 3 columns x 2 rows of panels"
+  },
+  "SASS_STANDOFF": {
+   "value": 0.62,
+   "tag": "EST",
+   "note": "sun-side standoff from the barrel"
+  },
+  "SASS_STOWED_AGAINST_OBA": {
+   "value": 1.0,
+   "tag": "PUB",
+   "note": "[S6] folded down against the OBA for launch"
+  },
+  "SASS_Z0": {
+   "value": 2.6,
+   "tag": "EST",
+   "note": ""
+  },
+  "SCRAPERS": {
+   "value": 1.0,
+   "tag": "PUB",
+   "note": "[S3] stray-light scrapers bonded under the strut blankets"
+  },
+  "SM_BASE_RADIUS": {
+   "value": 1.31,
+   "tag": "DER",
+   "note": "= FMS_DIA/2, strut feet on the hoop"
+  },
+  "SM_DIA": {
+   "value": 0.62,
+   "tag": "EST",
+   "note": "TODO: not published in cleared literature"
+  },
+  "SM_RISE": {
+   "value": 2.1892,
+   "tag": "DER",
+   "note": "= sqrt(L^2 - chord^2), chord by law of cosines w/ skew"
+  },
+  "SM_STRUTS": {
+   "value": 6.0,
+   "tag": "PUB",
+   "note": "[S3] SMA mounts at the top of six struts"
+  },
+  "SM_STRUT_DIA": {
+   "value": 0.055,
+   "tag": "EST",
+   "note": ""
+  },
+  "SM_STRUT_LEN": {
+   "value": 2.4,
+   "tag": "PUB",
+   "note": "[S3] ~2.4-meter-length secondary mirror struts"
+  },
+  "SM_STRUT_SKEW_DEG": {
+   "value": 14.0,
+   "tag": "EST",
+   "note": "hexapod pairs skew tangentially; not published"
+  },
+  "SM_TOP_RADIUS": {
+   "value": 0.34,
+   "tag": "EST",
+   "note": "strut heads on the SMA"
+  },
+  "SM_Z": {
+   "value": 7.7592,
+   "tag": "DER",
+   "note": "PM vertex + hoop + solved rise"
+  },
+  "STAND_H": {
+   "value": 2.2,
+   "tag": "EST",
+   "note": "[S2] 'elephant stand' lower truss"
+  },
+  "STAND_LEGS": {
+   "value": 6.0,
+   "tag": "EST",
+   "note": ""
+  },
+  "STAND_LEG_DIA": {
+   "value": 0.16,
+   "tag": "EST",
+   "note": ""
+  },
+  "TCE_BOARDS": {
+   "value": 17.0,
+   "tag": "PUB",
+   "note": "[S3] 17 circuit board assemblies, on the spacecraft element"
+  },
+  "TCE_HEATER_ZONES": {
+   "value": 96.0,
+   "tag": "PUB",
+   "note": "[S3] per side"
+  },
+  "TOMA_BIPOD_PAIRS": {
+   "value": 3.0,
+   "tag": "PUB",
+   "note": "[S3] TOMA on 3 bi-pod strut pairs off the AMS bottom"
+  },
+  "TOMA_BODY": {
+   "value": [
+    0.75,
+    0.6,
+    0.5
+   ],
+   "tag": "EST",
+   "note": "[S3] holds M3, M4, M5 + fold flat"
+  },
+  "TOMA_POWERED_MIRRORS": {
+   "value": 3.0,
+   "tag": "PUB",
+   "note": "[S3] M3, M4, M5"
+  },
+  "TOMA_Z_BELOW_AMS": {
+   "value": 0.3,
+   "tag": "EST",
+   "note": ""
+  },
+  "TOTAL_LENGTH": {
+   "value": 12.7,
+   "tag": "PUB",
+   "note": "[S1] deployed, semi-truck-trailer length"
+  },
+  "TOTAL_WIDTH": {
+   "value": 4.4,
+   "tag": "PUB",
+   "note": "[S1] deployed; read as the span across the sun shield (X). Depth is not published."
+  },
+  "WFI_DETECTORS": {
+   "value": 18.0,
+   "tag": "PUB",
+   "note": "[S5] 18 H4RG detectors, 300 MP mosaic"
+  },
+  "WFI_ELEMENTS": {
+   "value": 11.0,
+   "tag": "PUB",
+   "note": "[S12] 11-position element wheel"
+  },
+  "WFI_FOV_DEG": {
+   "value": [
+    0.8,
+    0.5
+   ],
+   "tag": "PUB",
+   "note": "[S3] diffraction-limited ~0.8 x 0.5 deg"
+  },
+  "WFI_OFFSET": {
+   "value": [
+    0.75,
+    0.3
+   ],
+   "tag": "EST",
+   "note": ""
+  },
+  "WFI_SIZE": {
+   "value": [
+    1.3,
+    1.1,
+    1.28
+   ],
+   "tag": "EST",
+   "note": ""
+  },
+  "WFI_WHEEL_DIA": {
+   "value": 0.46,
+   "tag": "EST",
+   "note": "wheel size not published"
+  },
+  "WFI_WHEEL_Z": {
+   "value": 0.5,
+   "tag": "EST",
+   "note": "height above the detectors, near the exit pupil"
+  },
+  "WFI_Z0": {
+   "value": 3.35,
+   "tag": "DER",
+   "note": "= IC_Z0 + IC_H; sits on the deck"
+  }
+ }
+}

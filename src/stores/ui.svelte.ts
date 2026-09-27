@@ -134,6 +134,11 @@ class UIStore {
   // Ctrl+K away, and the dock keeps them reachable.
   anatomyOpen = $state(false);
   anatomyFocus = $state(0);
+  /**
+   * The Roman explorer is the landing view: it covers the whole app until the
+   * visitor enters the tracker. `#tracker` in the URL skips it.
+   */
+  romanOpen = $state(typeof location === 'undefined' || !location.hash.includes('tracker'));
   /** How many catalogued objects currently sit in each licensed Starlink shell. */
   shellCensus = $state<Record<string, number>>({});
   constellationOpen = $state(false);

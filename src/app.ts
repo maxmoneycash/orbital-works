@@ -1386,6 +1386,12 @@ export class App {
   }
 
   private animate() {
+    // The Roman explorer covers the globe completely; stop drawing it and give
+    // the GPU to the explorer, checking back a few times a second.
+    if (uiStore.romanOpen) {
+      setTimeout(() => this.animate(), 250);
+      return;
+    }
     // Gate: skip if fired too early (MessageChannel precision phase)
     if (this.fpsLimit > 0) {
       const target = this.lastFrameTime + (1000 / this.fpsLimit);

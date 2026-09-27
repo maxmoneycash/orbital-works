@@ -8,7 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "rotator-sim": "node scripts/rotator-sim.mjs"
+    "rotator-sim": "node scripts/rotator-sim.mjs",
+    "roman:glb": "python3 scripts/roman/export_dims.py && ROMAN_OUT_DIR=public/models blender -b --factory-startup --python scripts/roman/build_web.py",
+    "roman:test": "cd scripts/roman && python3 test_harness.py && python3 test_materials.py"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

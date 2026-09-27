@@ -1,0 +1,48 @@
+{
+  "up_axis": "Y",
+  "orbit_target": [
+    0.0,
+    6.35,
+    0.0
+  ],
+  "total_length_m": 12.7,
+  "total_width_m": 4.4,
+  "dac_node_prefix": "TEL.DeployableApertureCover",
+  "dac_stowed_scale": 0.0918,
+  "mesh_count": 167,
+  "subsystems": [
+    "TEL.PrimaryMirrorAssembly",
+    "TEL.SecondaryMirrorAssembly",
+    "TEL.AftOpticsModule",
+    "TEL.TertiaryCollimatorAssembly",
+    "TEL.TelescopeControlElectronics",
+    "TEL.DeployableApertureCover",
+    "TEL.OuterBarrelAssembly",
+    "TEL.ForwardStructureAssembly",
+    "TEL.Interfaces",
+    "OSS.PrimaryStructure",
+    "OSS.LowerInstrumentSunShade",
+    "OSS.LaunchVehicleAdapter",
+    "SOLAR_ARRAY_SUN_SHIELD",
+    "COMMUNICATIONS",
+    "WIDE_FIELD_INSTRUMENT",
+    "CORONAGRAPH_INSTRUMENT",
+    "INSTRUMENT_CARRIER"
+  ],
+  "materials": [
+    "Baffle_Black",
+    "Composite",
+    "Detector",
+    "Filter",
+    "HGA_Carbon",
+    "MLI_Barrel",
+    "MLI_Gold",
+    "MLI_Silver",
+    "Mirror",
+    "Radiator",
+    "SolarArray",
+    "Structure_White",
+    "ULE_Glass",
+    "Visor"
+  ]
+}

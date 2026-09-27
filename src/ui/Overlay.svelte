@@ -18,6 +18,7 @@
   import PolarPlot from './PolarPlot.svelte';
   import DopplerWindow from './DopplerWindow.svelte';
   import AnatomyWindow from './AnatomyWindow.svelte';
+  import RomanExplorer from './roman/RomanExplorer.svelte';
   import DesignerWindow from './DesignerWindow.svelte';
   import PhasedArrayWindow from './PhasedArrayWindow.svelte';
   import WaveformWindow from './WaveformWindow.svelte';
@@ -78,6 +79,7 @@
   <FeedbackWindow />
   <SkyReticle />
   <SkyRotator />
+  {#if uiStore.romanOpen}<RomanExplorer />{/if}
 </div>
 
 <style>
