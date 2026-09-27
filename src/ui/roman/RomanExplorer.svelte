@@ -702,17 +702,15 @@
       {#each ch.body as para}<p>{para}</p>{/each}
 
       {#if ch.id === 'light'}
-        <ol class="stops" aria-label="The light path, traced back from the detectors">
+        <ol class="stops" aria-label="The light path, traced back from the detectors"
+          style:grid-template-rows="repeat({Math.ceil(stops.length / 2)}, auto)">
           {#each stops as st, k}
-            <li class:done={k < stopIndex} class:now={k === stopIndex}>
-              <b>{st.label}</b>
-              {#if k === stopIndex}<span>{STOP_NOTES[st.id]}</span>{/if}
-            </li>
+            <li class:done={k < stopIndex} class:now={k === stopIndex}><b>{st.label}</b></li>
           {/each}
         </ol>
-        {#if stops[stopIndex]}
-          <p class="stop-now short" aria-live="polite"><b>{stops[stopIndex].label}.</b> {STOP_NOTES[stops[stopIndex].id]}</p>
-        {/if}
+        <p class="stop-now" aria-live="polite">
+          {#if stops[stopIndex]}<b>{stops[stopIndex].label}.</b> {STOP_NOTES[stops[stopIndex].id]}{/if}
+        </p>
         <button class="ghost" onclick={replayLight}>Trace it again</button>
       {:else if ch.id === 'deploy'}
         <ol class="events">
@@ -975,7 +973,8 @@
   /* --- chapter copy -------------------------------------------------------- */
   .copy {
     position: absolute; left: 32px; bottom: calc(var(--dock) + 28px); width: min(440px, calc(100vw - 64px));
-    max-height: calc(100% - var(--dock) - 190px); overflow: auto; scrollbar-width: thin;
+    /* Everything between the masthead and the rail. */
+    max-height: calc(100% - var(--dock) - 164px); overflow: auto; scrollbar-width: thin;
     scrollbar-color: var(--rule) transparent;
     animation: arrive 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -983,7 +982,7 @@
   .copy.more { mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent); }
   @keyframes arrive { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } }
   .copy h2 {
-    margin: 0 0 14px; font-weight: 600; font-size: clamp(28px, 3.3vw, 46px);
+    margin: 0 0 14px; font-weight: 600; font-size: clamp(28px, min(3.3vw, 5vh), 46px);
     line-height: 1.02; letter-spacing: -0.035em; text-wrap: balance;
   }
   .copy p { margin: 0 0 12px; color: var(--ink-2); font-size: 14.5px; max-width: 46ch; text-wrap: pretty; }
@@ -1036,6 +1035,8 @@
   .source a:hover { color: var(--ink); }
 
   .stops, .events { list-style: none; margin: 16px 0 4px; padding: 0; display: grid; gap: 1px; }
+  /* Two columns, read down: detectors to wheel, then on out to the aperture. */
+  .stops { grid-auto-flow: column; grid-template-columns: 1fr 1fr; column-gap: 18px; max-width: 400px; }
   .stops li {
     position: relative; padding: 3px 0 3px 16px; font-size: 12.5px; color: var(--ink-3);
     transition: color 0.3s;
@@ -1046,7 +1047,6 @@
   .stops li.done { color: var(--ink-2); }
   .stops li.now { color: var(--live); }
   .stops li b { font-weight: 500; }
-  .stops li span { display: block; color: var(--ink); font-size: 12.5px; margin-top: 2px; }
   .stop-now { font-size: 13px !important; color: var(--ink) !important; margin: 10px 0 0 !important; min-height: 3em; }
   .stop-now b { color: var(--live); font-weight: 500; }
 
@@ -1060,6 +1060,10 @@
   .events time { font-size: 11px; color: var(--live); opacity: 0.85; }
   .events li:not(.now):not(.done) time { color: var(--ink-3); }
   .events span { font-size: 12.5px; }
+  /* Shorter screens: every time, only the current step's words. */
+  @media (max-height: 940px) {
+    .events li:not(.now) span { display: none; }
+  }
 
   .tools { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 14px; font-size: 12px; }
   .tools .ghost { margin: 0; }
@@ -1191,7 +1195,7 @@
     /* The light path: a tick per stop, the current one spelled out below. */
     .stops { display: flex; gap: 3px; margin: 12px 0 0; }
     .stops li { flex: 1; height: 2px; padding: 0; background: var(--rule); font-size: 0; transition: background 0.3s; }
-    .stops li::before, .stops li b, .stops li span { display: none; }
+    .stops li::before, .stops li b { display: none; }
     .stops li.done { background: var(--ink-2); }
     .stops li.now { background: var(--live); }
 
