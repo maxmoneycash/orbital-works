@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "roman mono",
+        "createdAt": "2026-09-27T12:59:29.492Z",
+        "reason": "Agent decision, not user-confirmed: 'Roman Mono' is a local @font-face alias for the documented Overpass Mono (variable woff2, 300-700) in RomanExplorer.svelte, kept separate from the console's 400-only Overpass Mono TTF; DESIGN.md records the double load as drift"
+      }
+    ]
+  }
+}
