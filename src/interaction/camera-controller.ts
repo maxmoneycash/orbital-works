@@ -33,6 +33,9 @@ export class CameraController {
   // ---- View offset (center earth above mobile sheet) ----
   private _viewOffsetY = 0;
   private _targetViewOffsetY = 0;
+  // ---- Horizontal view offset (center the globe beside a docked pane) ----
+  private _viewOffsetX = 0;
+  private _targetViewOffsetX = 0;
 
   // ---- Sky view (first-person ground camera) ----
   private _skyView = false;
@@ -320,6 +323,9 @@ export class CameraController {
   /** Set vertical view offset in pixels (shifts projection to center in available space). */
   setViewOffsetY(pixels: number): void { this._targetViewOffsetY = pixels; }
 
+  /** Horizontal view offset in pixels; positive moves the scene left. */
+  setViewOffsetX(pixels: number): void { this._targetViewOffsetX = pixels; }
+
   /** Clamp 2D target Y to map bounds. */
   clamp2dBounds(): void {
     this._targetCam2dTarget.y = Math.max(-MAP_H / 2, Math.min(MAP_H / 2, this._targetCam2dTarget.y));
@@ -338,6 +344,7 @@ export class CameraController {
 
     // Lerp view offset
     this._viewOffsetY += (this._targetViewOffsetY - this._viewOffsetY) * smooth;
+    this._viewOffsetX += (this._targetViewOffsetX - this._viewOffsetX) * smooth * 0.5;
 
     // Lerp 2D state
     this._cam2dZoom += (this._targetCam2dZoom - this._cam2dZoom) * smooth;
@@ -425,10 +432,11 @@ export class CameraController {
       this.camera3d.lookAt(this._target3d);
 
       // Apply 3D view offset: shift projection to center earth above sheet
-      if (Math.abs(this._viewOffsetY) > 0.5) {
+      if (Math.abs(this._viewOffsetY) > 0.5 || Math.abs(this._viewOffsetX) > 0.5) {
         this.camera3d.updateProjectionMatrix();
         const ndcOffset = this._viewOffsetY * 2 / window.innerHeight;
         this.camera3d.projectionMatrix.elements[9] -= ndcOffset;
+        this.camera3d.projectionMatrix.elements[8] += this._viewOffsetX * 2 / window.innerWidth;
         this.camera3d.projectionMatrixInverse.copy(this.camera3d.projectionMatrix).invert();
       }
     }

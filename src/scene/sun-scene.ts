@@ -3,6 +3,8 @@ import { calculateSunPosition } from '../astro/sun';
 
 const SUN_DISTANCE = 200; // draw units (beyond moon at ~128)
 const SUN_DISC_SIZE = 1.8; // matches real angular diameter (~0.53 deg, same as moon)
+/** Beyond Sun–Earth L2 (~500 units) and inside the camera's far plane. */
+const FAR_SUN_DISTANCE = 7000;
 
 export class SunScene {
   readonly disc: THREE.Sprite;
@@ -16,8 +18,14 @@ export class SunScene {
     this.disc.scale.set(SUN_DISC_SIZE, SUN_DISC_SIZE, 1);
   }
 
-  update(epoch: number) {
-    this.disc.position.copy(calculateSunPosition(epoch)).multiplyScalar(SUN_DISTANCE);
+  /**
+   * `far`: the camera is out in deep space, beyond where the Sun's stand-in
+   * distance works; push it out past L2 at the same apparent size.
+   */
+  update(epoch: number, far = false) {
+    const d = far ? FAR_SUN_DISTANCE : SUN_DISTANCE;
+    this.disc.position.copy(calculateSunPosition(epoch)).multiplyScalar(d);
+    this.disc.scale.setScalar((SUN_DISC_SIZE * d) / SUN_DISTANCE);
   }
 
   setBloomEnabled(enabled: boolean) {

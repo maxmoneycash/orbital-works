@@ -279,8 +279,6 @@ export class InputHandler {
 
     // Keyboard
     window.addEventListener('keydown', (e) => {
-      // The Roman explorer covers the app and owns the keyboard while open.
-      if (uiStore.romanOpen) return;
       // Ctrl+K: open command palette, Ctrl+F: open satellite search
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'f')) {
         e.preventDefault();

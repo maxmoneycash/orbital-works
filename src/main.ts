@@ -24,6 +24,8 @@ mount(Overlay, { target: document.getElementById('svelte-ui')! });
 // Start Three.js engine
 const app = new App();
 app.init();
+// Dev only: the running app, for poking at from the console.
+if (import.meta.env.DEV) (window as unknown as { __app: App }).__app = app;
 
 // ── Service Worker registration ──
 if ('serviceWorker' in navigator) {

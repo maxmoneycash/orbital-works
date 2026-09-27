@@ -3,7 +3,7 @@
   import MobileSheet from './shared/MobileSheet.svelte';
   import {
     ICON_DATA_SOURCES, ICON_SELECTION, ICON_PASSES, ICON_TIME, ICON_MORE,
-    ICON_OBSERVER, ICON_VIEW, ICON_SETTINGS, ICON_DATABASE, ICON_HELP, ICON_RADAR, ICON_SKY, ICON_FEEDBACK, ICON_DESIGNER } from './shared/icons';
+    ICON_OBSERVER, ICON_VIEW, ICON_SETTINGS, ICON_DATABASE, ICON_HELP, ICON_RADAR, ICON_SKY, ICON_FEEDBACK, ICON_DESIGNER, ICON_TELESCOPE } from './shared/icons';
   import { observerStore } from '../stores/observer.svelte';
 
   const tabs: { id: string; label: string; icon: string }[] = [
@@ -15,6 +15,7 @@
   ];
 
   const moreItems: { id: string; label: string; icon: string }[] = [
+    { id: 'roman', label: 'Roman telescope', icon: ICON_TELESCOPE },
     { id: 'designer', label: 'Designer', icon: ICON_DESIGNER },
     { id: 'sat-database', label: 'SatNOGS Database', icon: ICON_DATABASE },
     { id: 'rotator', label: 'Rotator', icon: ICON_RADAR },

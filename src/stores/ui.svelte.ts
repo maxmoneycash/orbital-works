@@ -135,10 +135,20 @@ class UIStore {
   anatomyOpen = $state(false);
   anatomyFocus = $state(0);
   /**
-   * The Roman explorer is the landing view: it covers the whole app until the
-   * visitor enters the tracker. `#tracker` in the URL skips it.
+   * The Roman Space Telescope pane: a live simulation beside the globe. Open
+   * on a first visit on desktop; after that, as the visitor left it.
    */
-  romanOpen = $state(typeof location === 'undefined' || !location.hash.includes('tracker'));
+  romanOpen = $state((() => {
+    try {
+      const v = localStorage.getItem('orbital_win_roman_open');
+      return v === null ? window.innerWidth >= 900 : v === 'true';
+    } catch { return false; }
+  })());
+  romanFocus = $state(0);
+  /** Fly the globe's camera out to Roman in deep space (set by the app). */
+  onShowRoman: (() => void) | null = null;
+  /** Roman's live state on the globe, for the pane (set by the app). */
+  romanLive = $state<{ distKm: number; lightSec: number; station: string | null; elevDeg: number | null; extrapolated: boolean } | null>(null);
   /** How many catalogued objects currently sit in each licensed Starlink shell. */
   shellCensus = $state<Record<string, number>>({});
   constellationOpen = $state(false);

@@ -78,7 +78,7 @@ function softDot(size = 64): THREE.Texture {
  * correct and unreadable, so two dim reflection cards give the metals shape the
  * way a studio would, while the sky itself stays black.
  */
-function makeL2Environment(renderer: THREE.WebGLRenderer): THREE.Texture {
+export function makeL2Environment(renderer: THREE.WebGLRenderer): THREE.Texture {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const env = new THREE.Scene();
   const sky = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.ShaderMaterial({
@@ -219,6 +219,11 @@ export class RomanStage {
 
     this.stars = this.makeStars();
     this.scene.add(this.stars);
+    // Earth, a blue point near the Sun's direction, as it is from L2.
+    this.earth = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDot(), color: 0x86b8ff, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.earth.material.color.multiplyScalar(2.2);
+    this.earth.scale.setScalar(6);
+    this.stars.add(this.earth);
     this.effects = this.makeEffects();
     this.scene.add(this.effects.group);
 
@@ -264,6 +269,7 @@ export class RomanStage {
       this.scene.add(this.light.group);
       const dish = model.byPart.get('HGA.Feed') ?? model.byPart.get('HGA.Dish');
       if (dish && this.pendingBeam) this.pendingBeam(boundsOf([dish]).getCenter(new THREE.Vector3()));
+      this.syncLive(true);
       this.resize();
       this.pose = this.shot('overview');
       this.place(this.camera, this.pose);
@@ -348,16 +354,86 @@ export class RomanStage {
       }
     }
     group.add(sunGroup, beamGroup);
+    // Built along +z from the dish, then aimed: the gimbal keeps it on Earth.
     this.pendingBeam = (from: THREE.Vector3) => {
+      this.beamFrom = from.clone();
+      beamGroup.position.copy(from);
       for (let k = 0; k < 5; k++) {
-        const off = new THREE.Vector3(Math.cos(k * 1.26), Math.sin(k * 1.26), 0).multiplyScalar(k ? 0.25 : 0);
-        const a = from.clone().add(off);
-        line(a, a.clone().addScaledVector(SUN_DIR, 40), beam, beamGroup);
+        const a = new THREE.Vector3(Math.cos(k * 1.26), Math.sin(k * 1.26), 0).multiplyScalar(k ? 0.25 : 0);
+        line(a, a.clone().setZ(40), beam, beamGroup);
       }
+      this.aimBeam();
     };
     return { group, sun, beam, sunGroup, beamGroup };
   }
   private pendingBeam: ((from: THREE.Vector3) => void) | null = null;
+  private beamFrom: THREE.Vector3 | null = null;
+  private earth: THREE.Sprite;
+  /** Earth's direction in the observatory's frame before any roll. */
+  private earthBase = SUN_DIR.clone();
+  private roll = 0;
+
+  /** Points part-way along the sunlight and the downlink, so labels can say what they are. */
+  get effectAnchors(): { sun: THREE.Vector3; beam: THREE.Vector3 | null } {
+    return {
+      sun: new THREE.Vector3(0.9, 5.5, 2.72).addScaledVector(SUN_DIR, 3.2),
+      beam: this.beamFrom ? this.beamFrom.clone().addScaledVector(this.earthDir(), 5) : null,
+    };
+  }
+
+  /** Where Earth lies from the observatory, in the stage's frame, after the roll. */
+  earthDir(out = new THREE.Vector3()) {
+    return out.copy(this.earthBase).applyAxisAngle(SUN_DIR, this.roll);
+  }
+
+  /** Earth on screen, for a label; z > 1 when behind the camera. */
+  earthOnScreen() {
+    return this.project(this.camera.position.clone().addScaledVector(this.earthDir(), 300));
+  }
+
+  /**
+   * The Sun–observatory–Earth angle, from the ephemeris. Roman keeps its
+   * shield on the Sun; Earth sits this far off that line.
+   */
+  setEarthAngle(rad: number) {
+    const axis = new THREE.Vector3().crossVectors(SUN_DIR, new THREE.Vector3(0, 1, 0)).normalize();
+    this.earthBase.copy(SUN_DIR).applyAxisAngle(axis, rad);
+    this.earth.position.copy(this.earthBase).multiplyScalar(350);
+    this.aimBeam();
+  }
+
+  /**
+   * Turning to a new target: Roman rolls about the Sun line, which keeps the
+   * shield where it is, so it shows as the sky wheeling past. The antenna's
+   * gimbal follows Earth round.
+   */
+  get skyRoll() { return this.roll; }
+  set skyRoll(a: number) {
+    this.roll = a;
+    this.stars.quaternion.setFromAxisAngle(SUN_DIR, a);
+    this.aimBeam();
+  }
+
+  private aimBeam() {
+    this.effects?.beamGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), this.earthDir());
+  }
+
+  /**
+   * Follow the app theme's live colour, which the theme editor can change at
+   * any time: the selection tint, the downlink and the coronagraph's light.
+   * Colours are uniforms, so nothing recompiles.
+   */
+  private liveCss = '';
+  private liveClock = 0;
+  private syncLive(force = false) {
+    const css = getComputedStyle(this.host).getPropertyValue('--live').trim();
+    if (!css || (css === this.liveCss && !force)) return;
+    this.liveCss = css;
+    const c = new THREE.Color().setStyle(css);
+    this.live.copy(c).lerp(new THREE.Color(0xffffff), 0.45);
+    this.effects.beam.color.copy(c);
+    this.light?.setLive(c);
+  }
 
   /* -------------------------------------------------------------- shots -- */
 
@@ -371,6 +447,18 @@ export class RomanStage {
   }
 
   /** Named camera poses, computed from the model's own geometry. */
+  /**
+   * Straight down onto the focal plane, the mosaic filling the view: the pose
+   * a live exposure is projected from, so the 3D chips show it forming.
+   */
+  mosaicPose(): Pose {
+    const b = this.model ? boundsOf(this.model.detectors) : new THREE.Box3(new THREE.Vector3(0.35, 3.37, -0.5), new THREE.Vector3(1.15, 3.4, -0.1));
+    const c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3());
+    const portrait = this.aspect < 1;
+    const d = portrait ? this.fitDist(s.z, s.x, 0.92) : this.fitDist(s.x, s.z, 0.92);
+    return { target: c, dist: d, theta: portrait ? -Math.PI / 2 : 0, phi: 0.0009 };
+  }
+
   shot(name: string): Pose {
     const m = this.model;
     const mid = new THREE.Vector3(0, LENGTH / 2, 0);
@@ -658,6 +746,7 @@ export class RomanStage {
     this.raf = requestAnimationFrame(this.tick);
     if (document.hidden) return;
     const dt = Math.min(this.clock.getDelta(), 0.1);
+    if ((this.liveClock += dt) > 1) { this.liveClock = 0; this.syncLive(); }
     const k = this.reducedMotion ? 60 : 4.5;
 
     this.stepFlight(dt);

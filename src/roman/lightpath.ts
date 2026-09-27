@@ -152,6 +152,12 @@ export class LightPath {
     this.set(0, false, 0);
   }
 
+  /** Tint the coronagraph's light with the theme's live colour. */
+  setLive(c: THREE.Color) {
+    this.cgiTrail.color.copy(c);
+    this.cgiPulse.color.copy(c).lerp(new THREE.Color(0xffffff), 0.6);
+  }
+
   setResolution(w: number, h: number) {
     for (const m of [this.trail, this.pulse, this.cgiTrail, this.cgiPulse]) m.resolution.set(w, h);
   }

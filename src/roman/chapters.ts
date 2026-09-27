@@ -1,6 +1,6 @@
 /**
  * The explorer's story, chapter by chapter. Copy only — the staging lives in
- * RomanExplorer.svelte, which reads `id` to decide what the 3D scene does.
+ * the Roman pane, which reads them for its optics view.
  *
  * Every claim here is from NASA or the Roman technical pages; sources are in
  * scripts/roman/roman_dims.py and the research notes it cites. Mission status
