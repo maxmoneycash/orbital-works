@@ -254,10 +254,14 @@
       }
       case 'power': {
         skyOn = false;
-        s.sunGoal = 0.45;
         s.beamGoal = 1;
         s.focus = new Set(['COMMUNICATIONS', 'SOLAR_ARRAY_SUN_SHIELD']);
         await s.fly([s.shot('comms')], first ? 0 : 2.6);
+        const dish = m.byPart.get('HGA.Dish'), panel = m.byPart.get('SASS.Outer.NX.2');
+        if (alive()) tags = [
+          ...(panel ? [{ text: 'Solar array, 4 kW', at: boundsOf([panel]).getCenter(new THREE.Vector3()) }] : []),
+          ...(dish ? [{ text: 'High-gain antenna, Ka-band', at: boundsOf([dish]).getCenter(new THREE.Vector3()) }] : []),
+        ];
         break;
       }
       case 'explore': {
@@ -568,8 +572,18 @@
           <label class="check"><input type="checkbox" bind:checked={cutaway} /> <span>Cutaway</span></label>
           <label class="check"><input type="checkbox" bind:checked={showLight} /> <span>Light path</span></label>
           <label class="check"><input type="checkbox" bind:checked={stowed} /> <span>Launch configuration</span></label>
-          <button class="ghost" onclick={() => (indexOpen = !indexOpen)} aria-expanded={indexOpen}>All parts</button>
+          <button class="ghost" onclick={() => (indexOpen = !indexOpen)} aria-expanded={indexOpen}>{indexOpen ? 'Hide parts' : 'All parts'}</button>
         </div>
+        {#if indexOpen}
+          <nav class="index" aria-label="Parts">
+            {#each GROUPS as [group, ids]}
+              <h3>{group}</h3>
+              {#each ids as id}
+                <button class="row" class:on={selSub === id} onclick={() => selectSubsystem(id)}>{SUBSYSTEM[id].label}</button>
+              {/each}
+            {/each}
+          </nav>
+        {/if}
       {/if}
 
       {#if ch.next}
@@ -579,22 +593,6 @@
       {#if ch.source}<p class="source">Source: <a href="https://{ch.source}" target="_blank" rel="noreferrer">{ch.source}</a></p>{/if}
     </article>
   {/key}
-
-  <!-- Parts index -->
-  {#if indexOpen}
-    <nav class="index" aria-label="Parts">
-      <div class="index-head">
-        <b>Parts</b>
-        <button class="x" onclick={() => (indexOpen = false)} aria-label="Close parts">×</button>
-      </div>
-      {#each GROUPS as [group, ids]}
-        <h3>{group}</h3>
-        {#each ids as id}
-          <button class="row" class:on={selSub === id} onclick={() => selectSubsystem(id)}>{SUBSYSTEM[id].label}</button>
-        {/each}
-      {/each}
-    </nav>
-  {/if}
 
   <!-- Inspector -->
   {#if sel}
@@ -829,17 +827,18 @@
   .check input { accent-color: var(--live); margin: 0; }
 
   /* --- parts index --------------------------------------------------------- */
+  /* The parts list lives inside the chapter panel, under its tools, so the
+     two can never cover each other. */
   .index {
-    position: absolute; left: 32px; top: 110px; bottom: 92px; width: 240px; overflow: auto;
-    background: var(--panel); border: 1px solid var(--rule); padding: 12px 0;
-    backdrop-filter: blur(10px); scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
+    margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 4px;
+    columns: 2; column-gap: 18px;
     animation: arrive 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-  .index-head { display: flex; justify-content: space-between; align-items: center; padding: 0 14px 6px; }
-  .index h3 { margin: 12px 14px 4px; font-size: 11px; font-weight: 500; color: var(--ink-3); }
+  .index h3 { margin: 10px 0 3px; font-size: 11px; font-weight: 500; color: var(--ink-3); break-after: avoid; }
   .row {
     display: block; width: 100%; text-align: left; background: none; border: none; cursor: pointer;
-    padding: 4px 14px; font-size: 12.5px; color: var(--ink-2); border-left: 1px solid transparent;
+    padding: 3px 0 3px 10px; font-size: 12.5px; color: var(--ink-2); border-left: 1px solid transparent;
+    break-inside: avoid;
   }
   .row:hover { color: var(--ink); }
   .row.on { color: var(--live); border-left-color: var(--live); }
@@ -930,6 +929,6 @@
     .rail li button { padding: 10px; font-size: 12px; }
     .arrow { width: 32px; height: 32px; }
     .inspector { left: 12px; right: 12px; top: auto; bottom: 64px; width: auto; max-height: 52vh; }
-    .index { left: 12px; right: 12px; width: auto; top: 76px; bottom: 64px; }
+    .index { columns: 1; }
   }
 </style>

@@ -181,7 +181,8 @@ export class RomanStage {
   private ro: ResizeObserver;
   private disposed = false;
   private readonly reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  private live = new THREE.Color(0x44ff44);
+  /** Selection tint: the theme's live green, softened toward white. */
+  private live = new THREE.Color(0x8cff8c);
   private cleanup: (() => void)[] = [];
 
   constructor(readonly host: HTMLElement) {
@@ -270,7 +271,10 @@ export class RomanStage {
       // compileAsync skips hidden objects, so show the beams for the pass.
       this.light.set(this.light.length, true, 1);
       this.effects.sunGroup.visible = this.effects.beamGroup.visible = true;
-      try { await this.renderer.compileAsync(this.scene, this.camera); } catch { /* compiles lazily instead */ }
+      // Capped: a hidden tab never resolves it, and a slow GPU may take long.
+      try {
+        await Promise.race([this.renderer.compileAsync(this.scene, this.camera), new Promise((r) => setTimeout(r, 6000))]);
+      } catch { /* compiles lazily instead */ }
       this.light.set(0, false, 0);
       this.effects.sunGroup.visible = this.effects.beamGroup.visible = false;
       return model;
@@ -409,7 +413,9 @@ export class RomanStage {
       case 'comms': {
         const dish = m?.byPart.get('HGA.Dish');
         const c = dish ? boundsOf([dish]).getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0.9, 2.3);
-        return this.shift({ target: c.setY(c.y + 0.9), dist: this.fitDist(6.5, 6, 0.8), theta: -0.95, phi: 1.22 }, portrait ? 0 : 0.1, 0);
+        // Three-quarter from the sun side: the array's cells in view, the dish
+        // below them, the downlink leaving toward screen right.
+        return this.shift({ target: c.setY(c.y + 2.2).setZ(c.z - 0.9), dist: this.fitDist(9, 11, 0.82), theta: -0.5, phi: 1.5 }, portrait ? 0 : 0.12, 0);
       }
       case 'explore':
         return { target: mid.clone(), dist: this.fitDist(9, 17, 0.82), theta: 0.8, phi: 1.3 };
@@ -435,7 +441,7 @@ export class RomanStage {
     const s = b.getSize(new THREE.Vector3());
     return {
       target: b.getCenter(new THREE.Vector3()),
-      dist: THREE.MathUtils.clamp(this.fitDist(Math.max(s.x, s.z), s.y, 0.6), 1.2, 60),
+      dist: THREE.MathUtils.clamp(this.fitDist(Math.max(s.x, s.z), s.y, 0.42), 1.6, 60),
       theta: from.theta, phi: THREE.MathUtils.clamp(from.phi, 0.5, 2.2),
     };
   }
@@ -730,9 +736,11 @@ export class RomanStage {
         // the interior it no longer covers.
         mesh.castShadow = !(CUT.has(sub) && this.cut > 0.02);
 
-        const hl = part && part === this.selectedPart ? 0.22 + 0.16 * pulse
-          : part && part === this.hoverPart ? 0.16
-          : sub && sub === this.selectedSubsystem && !this.selectedPart ? 0.08 + 0.06 * pulse : 0;
+        // Kept low: on a mirror, which reflects black space, any emissive
+        // tint is all you see.
+        const hl = part && part === this.selectedPart ? 0.12 + 0.1 * pulse
+          : part && part === this.hoverPart ? 0.1
+          : sub && sub === this.selectedSubsystem && !this.selectedPart ? 0.015 + 0.02 * pulse : 0;
         mat.emissive.copy(this.live);
         mat.emissiveIntensity = hl;
       }
