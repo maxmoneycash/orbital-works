@@ -1,7 +1,19 @@
 import type { Satellite, SelectedSatInfo } from '../types';
+import type { RomanShowState } from '../scene/roman-orbit';
 import type { SatellitePass } from '../passes/pass-types';
 import { ViewMode } from '../types';
 import { MOBILE_BREAKPOINT } from '../constants';
+
+export type RomanShow = RomanShowState['show'];
+export interface RomanView extends RomanShowState {
+  distKm: number;
+  lightSec: number;
+  l2Km: number | null;
+  speedKmS: number;
+  extrapolated: boolean;
+  station: string | null;
+  replaying: boolean;
+}
 
 export class SceneLabel {
   visible = $state(false);
@@ -135,23 +147,21 @@ class UIStore {
   anatomyOpen = $state(false);
   anatomyFocus = $state(0);
   /**
-   * The Roman Space Telescope pane: a live simulation beside the globe. Open
-   * on a first visit on desktop; after that, as the visitor left it.
+   * Fly the globe's camera out to Roman in deep space (set by the app): all
+   * the way in to the observatory by default; `wide` stops with Earth and
+   * Roman both in frame, and `at` frames Roman where it will be then (Unix ms).
    */
-  romanOpen = $state((() => {
-    try {
-      const v = localStorage.getItem('orbital_win_roman_open');
-      return v === null ? window.innerWidth >= 900 : v === 'true';
-    } catch { return false; }
-  })());
-  romanFocus = $state(0);
-  /**
-   * Fly the globe's camera out to Roman in deep space (set by the app).
-   * `at`: frame the view for Roman's position at that time (Unix ms) instead of now.
-   */
-  onShowRoman: ((opts?: { at?: number }) => void) | null = null;
-  /** Roman's live state on the globe, for the pane (set by the app). */
-  romanLive = $state<{ distKm: number; lightSec: number; station: string | null; elevDeg: number | null; extrapolated: boolean } | null>(null);
+  onShowRoman: ((opts?: { at?: number; wide?: boolean }) => void) | null = null;
+  /** Play one of the observatory's shows on the model (set by the app). */
+  onRomanShow: ((show: RomanShow) => void) | null = null;
+  /** Replay the flight from launch on the globe, then fly back in (set by the app). */
+  onReplayRoman: (() => void) | null = null;
+  /** Leave Roman for Earth (set by the app). */
+  onLeaveRoman: (() => void) | null = null;
+  /** While the camera is up close to Roman: what it is doing, for the HUD (set by the app). */
+  romanView = $state<RomanView | null>(null);
+  /** The camera is on its way out to Roman (set by the app). */
+  romanFlying = $state(false);
   /** How many catalogued objects currently sit in each licensed Starlink shell. */
   shellCensus = $state<Record<string, number>>({});
   constellationOpen = $state(false);

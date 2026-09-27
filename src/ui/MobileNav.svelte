@@ -42,6 +42,8 @@
   }
 
   function onMoreItem(id: string) {
+    // Roman is not a sheet: the camera flies out to it.
+    if (id === 'roman') { uiStore.closeMobileSheet(); uiStore.onShowRoman?.(); return; }
     uiStore.openMobileSheet(id);
   }
 </script>

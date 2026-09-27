@@ -18,15 +18,10 @@ import { DRAW_SCALE } from '../constants';
 import { geodeticToEci } from '../astro/geodetic';
 import { loadDeepSpace, positionAt, span, l2At, C_KM_S, type DeepSpace, type BodyName } from '../roman/ephem';
 import { STATIONS, MIN_ELEVATION, type Station } from '../roman/sim';
-import { loadRomanModel, LENGTH } from '../roman/model';
-import { SUN_DIR, makeL2Environment } from '../roman/stage';
+import { RomanInOrbit } from './roman-orbit';
 
-/**
- * Roman drawn to scale would be four millionths of a draw unit. Close in, it
- * is shown this much larger, about 60,000 times, and the label says so.
- */
-const MODEL_SCALE = 0.02;
-const SHOW_MODEL_WITHIN = 6;
+/** Within this many draw units of Roman, the observatory itself is drawn. */
+export const SHOW_MODEL_WITHIN = 6;
 
 const OBLIQUITY = (23.4393 * Math.PI) / 180;
 /** The ecliptic pole in ICRF equatorial coordinates. */
@@ -70,6 +65,9 @@ export interface RomanNow {
   draw: THREE.Vector3;
   distKm: number;
   lightSec: number;
+  /** How far from Sun–Earth L2, km, and how fast Roman is moving relative to Earth, km/s. */
+  l2Km: number | null;
+  speedKmS: number;
   contact: { st: Station; elev: number } | null;
   /** The clock is past the published predict; Roman is held at its end. */
   extrapolated: boolean;
@@ -100,19 +98,19 @@ export class DeepSpaceLayer {
   private tmp = new THREE.Vector3();
   private clock = 0;
   private builtWall = 0;
-  private model: THREE.Object3D | null = null;
-  private sunLight = new THREE.DirectionalLight(0xfff3e2, 4.2);
-  private ambient = new THREE.AmbientLight(0x3a4658, 1.6);
-  /** A soft light from the viewer's side, so the shaded face still reads. */
-  private fill = new THREE.DirectionalLight(0xb8cae8, 1.6);
+  /** The observatory itself, drawn when the camera is close. */
+  readonly orbit: RomanInOrbit;
   private modelShown = false;
+  private lastNow = Date.now();
 
-  constructor(private camera: THREE.PerspectiveCamera, uiRoot: HTMLElement, private renderer: THREE.WebGLRenderer) {
+  constructor(private camera: THREE.PerspectiveCamera, uiRoot: HTMLElement, renderer: THREE.WebGLRenderer) {
     this.group.name = 'deep-space';
     this.labelHost = document.createElement('div');
     Object.assign(this.labelHost.style, { position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden' });
     this.labelHost.className = 'deep-space-labels';
     uiRoot.prepend(this.labelHost);
+    this.orbit = new RomanInOrbit(renderer, uiRoot);
+    this.group.add(...this.orbit.objects);
 
     const dot = dotTexture();
     const mk = (id: string, color: number, size: number) => {
@@ -152,6 +150,7 @@ export class DeepSpaceLayer {
     this.label('l2', 'Sun–Earth L2');
     this.label('moon', 'Moon’s orbit');
     this.label('beam', '');
+    this.label('earth', 'Earth');
   }
 
   private mat(color: number, width: number, opacity: number, dashed = false) {
@@ -180,39 +179,7 @@ export class DeepSpaceLayer {
 
   async load() {
     this.ds = await loadDeepSpace();
-    this.loadModel().catch((e) => console.warn('[deep-space] Roman model unavailable', e));
-  }
-
-  /**
-   * The globe's own copy of the observatory. Materials are cloned and reset,
-   * so the pane's cutaways and selections don't reach it; the lights added
-   * here touch nothing else, as nothing else in the globe's scene is lit.
-   */
-  private async loadModel() {
-    const src = await loadRomanModel();
-    const root = src.root.clone(true);
-    const env = makeL2Environment(this.renderer);
-    root.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      const m = (mesh.material as THREE.MeshStandardMaterial).clone();
-      Object.assign(m, { opacity: 1, transparent: false, depthWrite: true, clippingPlanes: null, side: THREE.FrontSide, emissiveIntensity: 0, envMap: env, envMapIntensity: 1.0 });
-      m.needsUpdate = true;
-      mesh.material = m;
-      mesh.castShadow = mesh.receiveShadow = false;
-      const b = mesh.userData.basePosition as { x: number; y: number; z: number } | undefined;
-      if (b) mesh.position.set(b.x, b.y, b.z);
-    });
-    // Centre it on its own middle, so it turns about itself.
-    root.position.set(0, -LENGTH / 2, 0);
-    const holder = new THREE.Group();
-    holder.add(root);
-    holder.scale.setScalar(MODEL_SCALE);
-    holder.visible = false;
-    this.sunLight.target = holder;
-    this.fill.target = holder;
-    this.group.add(holder, this.sunLight, this.ambient, this.fill);
-    this.model = holder;
+    this.orbit.load(this.camera).catch((e) => console.warn('[deep-space] Roman model unavailable', e));
   }
 
   /** Sample times of a body between two instants. */
@@ -305,6 +272,7 @@ export class DeepSpaceLayer {
     if (c.equals(this.live)) return;
     this.live.copy(c);
     this.applyLive();
+    this.orbit.setLive(c);
   }
 
   private applyLive() {
@@ -326,11 +294,13 @@ export class DeepSpaceLayer {
 
   /**
    * `now` Unix ms (the app's clock), `gmstRad` Earth's rotation as the globe
-   * draws it, `w`/`h` the canvas size in CSS px.
+   * draws it, `w`/`h` the canvas size in CSS px; `inspecting` when the camera
+   * is locked on Roman up close, which trades the far labels for the model's.
    */
-  update(now: number, gmstRad: number, dt: number, w: number, h: number) {
+  update(now: number, gmstRad: number, dt: number, w: number, h: number, inspecting = false) {
     const ds = this.ds;
     if (!ds) return;
+    this.lastNow = now;
     // Re-anchor the rotating frame every two hours of clock time, but no more
     // than four times a second of wall time, so a time warp stays smooth.
     if (Math.abs(now - this.builtAt) > 2 * 3_600_000 && (this.builtAt === -Infinity || performance.now() - this.builtWall > 250)) {
@@ -360,7 +330,13 @@ export class DeepSpaceLayer {
       const elev = Math.asin(THREE.MathUtils.clamp(up.dot(rk.clone().sub(sv).normalize()), -1, 1));
       if (elev > MIN_ELEVATION && (!contact || elev > contact.elev)) contact = { st, elev };
     }
-    this.roman = { draw, distKm: rk.length(), lightSec: rk.length() / C_KM_S, contact, extrapolated: now > r1 };
+    const l2 = l2At(ds, now);
+    const ra = positionAt(ds, 'roman', Math.max(r0, tt - 60_000)), rb = positionAt(ds, 'roman', Math.min(r1, tt + 60_000));
+    const dtS = (Math.min(r1, tt + 60_000) - Math.max(r0, tt - 60_000)) / 1000;
+    this.roman = {
+      draw, distKm: rk.length(), lightSec: rk.length() / C_KM_S, contact, extrapolated: now > r1,
+      l2Km: l2 ? rk.distanceTo(l2) : null, speedKmS: ra && rb && dtS > 0 ? ra.distanceTo(rb) / dtS : 0,
+    };
 
     const place = (id: string, v: THREE.Vector3 | null) => {
       const m = this.markers.get(id)!;
@@ -370,28 +346,20 @@ export class DeepSpaceLayer {
     place('roman', draw);
     this.pulse.visible = true;
     const near = this.camera.position.distanceTo(draw) < SHOW_MODEL_WITHIN;
-    if (this.model) {
-      this.model.visible = near;
-      this.modelShown = near;
-      if (near) {
-        this.model.position.copy(draw);
-        // The sun shield on the Sun, as Roman always keeps it.
-        const sun = positionAt(ds, 'sun', now);
-        if (sun) {
-          const toSun = toRender(sun.sub(rk)).normalize();
-          this.model.quaternion.setFromUnitVectors(SUN_DIR, toSun);
-          this.sunLight.position.copy(draw).addScaledVector(toSun, 5);
-        }
-        this.fill.position.copy(this.camera.position);
-      }
-      this.sunLight.visible = this.ambient.visible = this.fill.visible = near;
-    }
+    this.modelShown = near && !!this.orbit.model;
+    this.orbit.visible = near;
+    const sun = positionAt(ds, 'sun', now);
+    this.orbit.update({
+      draw, toSun: sun ? toRender(sun.sub(rk)).normalize() : new THREE.Vector3(1, 0, 0),
+      toEarth: this.tmp.copy(draw).negate().normalize().clone(), station: contact?.st.short ?? null,
+      camera: this.camera, dt, w, h, inspecting: inspecting && this.modelShown, labels: [],
+    });
     this.pulse.position.copy(draw);
     const ph = (this.clock % 2.4) / 2.4;
     this.pulse.scale.setScalar(0.02 + ph * 0.05);
     this.pulse.material.opacity = (this.modelShown ? 0.25 : 0.8) * (1 - ph);
     this.markers.get('roman')!.visible = !this.modelShown;
-    const jw = positionAt(ds, 'jwst', now), eu = positionAt(ds, 'euclid', now), l2 = l2At(ds, now);
+    const jw = positionAt(ds, 'jwst', now), eu = positionAt(ds, 'euclid', now);
     place('jwst', jw && toRender(jw));
     place('euclid', eu && toRender(eu));
     place('l2', l2 && toRender(l2));
@@ -400,7 +368,10 @@ export class DeepSpaceLayer {
     if (contact) {
       const e = geodeticToEci(contact.st.lat, contact.st.lon, 0, gmstRad);
       const gs = toRender(sv.set(e.x, e.y, e.z));
-      (this.beam.geometry as LineGeometry).setPositions([draw.x, draw.y, draw.z, gs.x, gs.y, gs.z]);
+      // From the dish's feed when the observatory is drawn, so the stream
+      // leaving the antenna runs on unbroken down to the station.
+      const from = this.modelShown ? this.orbit.feedWorld() : draw;
+      (this.beam.geometry as LineGeometry).setPositions([from.x, from.y, from.z, gs.x, gs.y, gs.z]);
       this.beam.computeLineDistances();
       this.beamMat.dashOffset -= dt * 60;
       this.beam.visible = true;
@@ -413,15 +384,24 @@ export class DeepSpaceLayer {
     const L = this.labels;
     L.get('roman')!.at.copy(draw);
     (L.get('roman')!.el.lastElementChild as HTMLElement).textContent =
-      ` · ${Math.round(rk.length()).toLocaleString('en-US')} km${now > r1 ? ' (predict ends)' : ''}${this.modelShown ? ' · shown ~60,000× actual size' : ''}`;
+      ` · ${Math.round(rk.length()).toLocaleString('en-US')} km${now > r1 ? ' (predict ends)' : ''}`;
     if (jw) L.get('jwst')!.at.copy(toRender(jw));
     if (eu) L.get('euclid')!.at.copy(toRender(eu));
     if (l2) L.get('l2')!.at.copy(toRender(l2));
     const mRing = positionAt(ds, 'moon', now - 7 * DAY);
     if (mRing) L.get('moon')!.at.copy(toRender(mRing));
     (L.get('beam')!.el.firstElementChild as HTMLElement).textContent = contact ? `Ka-band downlink → ${contact.st.short}` : '';
+    (L.get('earth')!.el.lastElementChild as HTMLElement).textContent = ` · ${Math.round(rk.length()).toLocaleString('en-US')} km away`;
+    const up = inspecting && this.modelShown;
+    // Up close the tracks run straight through the model: let them recede.
+    const tf = this.romanTrack?.material as LineMaterial | undefined, tp = this.romanPast?.material as LineMaterial | undefined;
+    if (tf) tf.opacity = up ? 0.12 : 0.45;
+    if (tp) tp.opacity = up ? 0.22 : 0.95;
+    for (const t of this.tracks) (t.material as LineMaterial).opacity = up ? 0.08 : 0.38;
+    if (this.moonRing) (this.moonRing.material as LineMaterial).opacity = up ? 0.06 : 0.22;
     const show = new Map<string, boolean>([
-      ['roman', true], ['jwst', !!jw], ['euclid', !!eu], ['l2', !!l2], ['moon', !!mRing], ['beam', !!contact],
+      ['roman', !up], ['jwst', !!jw && !up], ['euclid', !!eu && !up], ['l2', !!l2 && !up], ['moon', !!mRing && !up],
+      ['beam', !!contact], ['earth', up],
     ]);
     // Far labels only once the camera is out far enough to make sense of them.
     const far = this.camera.position.length() > 60;
@@ -430,11 +410,15 @@ export class DeepSpaceLayer {
       const p = this.tmp.copy(lb.at).project(this.camera);
       const on = want && p.z < 1 && p.x > -1.05 && p.x < 1.05 && p.y > -1.05 && p.y < 1.05;
       if (on !== lb.on) { lb.el.style.display = on ? '' : 'none'; lb.on = on; }
-      // Beside the enlarged model, not over it.
-      const dx = id === 'roman' && this.modelShown ? 80 : 0;
-      if (on) lb.el.style.translate = `${((p.x + 1) / 2) * w + dx}px ${((1 - p.y) / 2) * h}px`;
+      if (on) lb.el.style.translate = `${((p.x + 1) / 2) * w}px ${((1 - p.y) / 2) * h}px`;
     }
     this.group.visible = true;
+  }
+
+  /** The Sun's direction from a point, in the globe's frame, at the clock's last update. */
+  sunDirAt(from: THREE.Vector3): THREE.Vector3 {
+    const sun = this.ds ? positionAt(this.ds, 'sun', this.lastNow) : null;
+    return sun ? toRender(sun).sub(from).normalize() : new THREE.Vector3(1, 0, 0);
   }
 
   /** Roman's render-frame position at `t` (clamped to the published predict), or null before loading. */
@@ -458,6 +442,7 @@ export class DeepSpaceLayer {
   dispose() {
     this.group.traverse((o) => { if ((o as Line2).isLine2) (o as Line2).geometry.dispose(); });
     for (const m of this.mats) m.dispose();
+    this.orbit.dispose();
     this.labelHost.remove();
   }
 }

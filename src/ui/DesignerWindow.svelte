@@ -457,8 +457,8 @@
       if (!localStorage.getItem('orbital_seen')) {
         localStorage.setItem('orbital_seen', '1');
         if (!new URLSearchParams(location.search).get('d')) {
-          // On desktop the Roman pane is the first thing a visitor sees
-          // (see uiStore.romanOpen); the Designer stays one dock click away.
+          // On desktop a first visit flies out to Roman (see app.ts); the
+          // Designer stays one dock click away.
           if (uiStore.isMobile) uiStore.openMobileSheet('designer');
           track('first_run_designer_opened', { mobile: uiStore.isMobile });
         }
