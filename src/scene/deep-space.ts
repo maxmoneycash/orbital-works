@@ -99,6 +99,7 @@ export class DeepSpaceLayer {
   private labelHost: HTMLDivElement;
   private tmp = new THREE.Vector3();
   private clock = 0;
+  private builtWall = 0;
   private model: THREE.Object3D | null = null;
   private sunLight = new THREE.DirectionalLight(0xfff3e2, 4.2);
   private ambient = new THREE.AmbientLight(0x3a4658, 1.6);
@@ -330,7 +331,12 @@ export class DeepSpaceLayer {
   update(now: number, gmstRad: number, dt: number, w: number, h: number) {
     const ds = this.ds;
     if (!ds) return;
-    if (Math.abs(now - this.builtAt) > 2 * 3_600_000) this.rebuild(now);
+    // Re-anchor the rotating frame every two hours of clock time, but no more
+    // than four times a second of wall time, so a time warp stays smooth.
+    if (Math.abs(now - this.builtAt) > 2 * 3_600_000 && (this.builtAt === -Infinity || performance.now() - this.builtWall > 250)) {
+      this.rebuild(now);
+      this.builtWall = performance.now();
+    }
     for (const m of this.mats) m.resolution.set(w, h);
     this.clock += dt;
 
@@ -429,6 +435,19 @@ export class DeepSpaceLayer {
       if (on) lb.el.style.translate = `${((p.x + 1) / 2) * w + dx}px ${((1 - p.y) / 2) * h}px`;
     }
     this.group.visible = true;
+  }
+
+  /** Roman's render-frame position at `t` (clamped to the published predict), or null before loading. */
+  romanDrawAt(t: number): THREE.Vector3 | null {
+    if (!this.ds) return null;
+    const [r0, r1] = span(this.ds, 'roman');
+    const p = positionAt(this.ds, 'roman', Math.min(Math.max(t, r0), r1));
+    return p && toRender(p);
+  }
+
+  /** When Roman's published track begins, Unix ms. */
+  get romanStart(): number | null {
+    return this.ds ? span(this.ds, 'roman')[0] : null;
   }
 
   setVisible(v: boolean) {

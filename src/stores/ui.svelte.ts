@@ -145,8 +145,11 @@ class UIStore {
     } catch { return false; }
   })());
   romanFocus = $state(0);
-  /** Fly the globe's camera out to Roman in deep space (set by the app). */
-  onShowRoman: (() => void) | null = null;
+  /**
+   * Fly the globe's camera out to Roman in deep space (set by the app).
+   * `at`: frame the view for Roman's position at that time (Unix ms) instead of now.
+   */
+  onShowRoman: ((opts?: { at?: number }) => void) | null = null;
   /** Roman's live state on the globe, for the pane (set by the app). */
   romanLive = $state<{ distKm: number; lightSec: number; station: string | null; elevDeg: number | null; extrapolated: boolean } | null>(null);
   /** How many catalogued objects currently sit in each licensed Starlink shell. */

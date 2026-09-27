@@ -4,11 +4,11 @@
   import MobileSheet from '../shared/MobileSheet.svelte';
   import { uiStore } from '../../stores/ui.svelte';
   import { timeStore } from '../../stores/time.svelte';
-  import { epochToUnix } from '../../astro/epoch';
+  import { epochToUnix, unixToEpoch } from '../../astro/epoch';
   import { RomanStage, type Pose, type PickHit } from '../../roman/stage';
   import { Exposure } from '../../roman/imaging';
   import { MissionSim, PHASES, PHASE_LABEL, type Phase } from '../../roman/sim';
-  import { loadDeepSpace } from '../../roman/ephem';
+  import { loadDeepSpace, span } from '../../roman/ephem';
   import { STOP_NOTES } from '../../roman/chapters';
   import { SUBSYSTEM, GROUPS, partLabel, type Subsystem } from '../../roman/catalog';
   import { PROVENANCE, PROVENANCE_TOTAL, type Tag } from '../../roman/dims';
@@ -300,6 +300,28 @@
     if (stage) { stage.selectedPart = null; stage.selectedSubsystem = null; }
   }
 
+  /* -------------------------------------------------------------- replay -- */
+
+  /**
+   * The flight so far, replayed on the globe: out to Roman framed for where
+   * it is now, the clock back to just after launch, then a slow warp forward
+   * to the present while the track draws itself out toward L2.
+   */
+  let replaying = $state(false);
+  async function replay() {
+    const ds = await loadDeepSpace();
+    const now = epochToUnix(timeStore.epoch) * 1000;
+    const start = span(ds, 'roman')[0];
+    if (now <= start + 3_600_000 || replaying) return;
+    replaying = true;
+    uiStore.onShowRoman?.({ at: now });
+    timeStore.epoch = unixToEpoch(start / 1000);
+    setTimeout(() => {
+      timeStore.warpToEpoch(unixToEpoch(now / 1000), reducedMotion ? 1 : 22);
+      setTimeout(() => (replaying = false), reducedMotion ? 1500 : 22_500);
+    }, reducedMotion ? 0 : 2200);
+  }
+
   /* ------------------------------------------------------------- display -- */
 
   const km = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -440,10 +462,13 @@
 
       <footer>
         <p>Position and stations: JPL Horizons, live{hud.extrapolated ? ` (held at the predict’s end, ${new Date(hud.predictEnds).toUTCString().slice(5, 16)})` : ''}. Observing cycle simulated on synthetic fields; science begins early 2027.</p>
+        <div class="acts">
+        <button class="ghost" onclick={replay} disabled={replaying}>{replaying ? 'Replaying…' : 'Replay the flight'}</button>
         <button class="cta" onclick={() => uiStore.onShowRoman?.()}>
           See it in orbit
           <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square" aria-hidden="true"><path d="M2.5 8h10M9 4.5 12.5 8 9 11.5" /></svg>
         </button>
+        </div>
       </footer>
     </div>
 {/snippet}
@@ -557,13 +582,16 @@
   .t.EST { color: var(--est); }
   .fine { margin: 10px 0 0; font-size: 10px; color: var(--ink-3); }
 
-  footer { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 7px 10px; }
-  footer p { margin: 0; font-size: 10px; color: var(--ink-3); max-width: 62ch; }
+  footer { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; padding: 7px 10px; }
+  footer p { margin: 0; font-size: 10px; color: var(--ink-3); flex: 1 1 100%; }
+  footer .acts { margin-left: auto; }
   .cta {
     flex: none; display: inline-flex; gap: 10px; align-items: center; white-space: nowrap; cursor: pointer;
     background: var(--live); color: #000 !important; border: none; padding: 8px 12px; font-weight: 600; font-size: 11.5px;
   }
   .cta:hover { box-shadow: 0 6px 20px -8px var(--live); }
+  .acts { flex: none; display: flex; gap: 6px; }
+  .ghost:disabled { color: var(--ink-3); cursor: default; }
 
   @media (prefers-reduced-motion: reduce) {
     .dot, .link.up .led { animation: none; }

@@ -961,9 +961,11 @@ export class App {
     uiStore.onToggleSkyView = () => this.toggleSkyView();
     // Out to Roman: lock on it and pull back until Earth is in the frame too,
     // looking down from above the ecliptic.
-    uiStore.onShowRoman = () => {
+    uiStore.onShowRoman = (opts) => {
       const r = this.deepSpace.roman;
       if (!r) return;
+      // Frame for where Roman is, or will be at `at` (a replay's end).
+      const aim = (opts?.at !== undefined ? this.deepSpace.romanDrawAt(opts.at) : null) ?? r.draw;
       if (this.lockedSat) this.exitSatLock();
       if (this.orreryCtrl.isOrreryMode) return;
       if (this.viewMode === ViewMode.VIEW_SKY) this.exitSkyView();
@@ -974,11 +976,11 @@ export class App {
       }
       this.activeLock = this.prevLock = TargetLock.ROMAN;
       // Wide enough to hold Earth and Roman side by side; further on a tall screen.
-      const d1 = r.draw.length() * 2.1 * Math.max(1, 1.2 / (window.innerWidth / window.innerHeight));
+      const d1 = aim.length() * 2.1 * Math.max(1, 1.2 / (window.innerWidth / window.innerHeight));
       this.romanFlight = { t: 0, dur: 4.2, from: this.camera.target3d.clone(), d0: this.camera.distance, d1 };
       // Side-on to the Earth–Roman line and a little above it: Earth one
       // side, Roman and L2 the other.
-      this.camera.setTargetAngles(Math.atan2(r.draw.x, r.draw.z) + Math.PI / 2, 0.95);
+      this.camera.setTargetAngles(Math.atan2(aim.x, aim.z) + Math.PI / 2, 0.95);
     };
     uiStore.onResetCamera = () => { this.camera.resetView(); if (this.lockedSat) this.exitSatLock(); else this.activeLock = TargetLock.NONE; };
 

@@ -153,15 +153,16 @@ class TimeStore {
   }
 
   /** Start an animated time warp to the target epoch.
-   *  Animates for jumps up to 30 days, snaps instantly beyond that. */
-  warpToEpoch(target: number) {
+   *  Animates for jumps up to 30 days, snaps instantly beyond that;
+   *  `durationSec` asks for a slower, watchable warp (up to 60 days). */
+  warpToEpoch(target: number, durationSec?: number) {
     const startUnix = epochToUnix(this.epoch);
     const targetUnix = epochToUnix(target);
     const deltaSec = Math.abs(targetUnix - startUnix);
     const absDays = deltaSec / 86400;
 
     // Tiny jumps (< 1 minute) or large jumps (> 30 days): snap
-    if (deltaSec < 60 || absDays > 30) {
+    if (deltaSec < 60 || absDays > (durationSec ? 60 : 30)) {
       this.epoch = target;
       return;
     }
@@ -175,7 +176,7 @@ class TimeStore {
     this.preWarpPaused = this.paused;
 
     // Duration scales with magnitude: ~1.2s for small jumps, ~3s for large ones
-    this.warpDuration = Math.min(3.0, Math.max(1.2, 0.5 + 0.6 * Math.log10(absDays + 1)));
+    this.warpDuration = durationSec ?? Math.min(3.0, Math.max(1.2, 0.5 + 0.6 * Math.log10(absDays + 1)));
   }
 
   // ── Scrub (shared by mouse drag and keyboard hold) ──
