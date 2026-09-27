@@ -1,0 +1,711 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-27T12:58:10+00:00",
+  "title": "Design System: Orbital Works",
+  "extensions": {
+    "colorMeta": {
+      "live-green": {
+        "role": "primary",
+        "displayName": "Live Green",
+        "canonical": "#44ff44",
+        "purpose": "Theme --live; active, measured, selected, published.",
+        "tonalRamp": [
+          "#001100",
+          "#002f00",
+          "#005202",
+          "#107612",
+          "#199d1c",
+          "#0ac817",
+          "#2ef131",
+          "#cefeca"
+        ],
+        "themeVariable": "--live",
+        "themeOverrides": {
+          "light": "#22aa22",
+          "lavender": "#66dd88",
+          "tlescope": "#66ff66",
+          "solarized": "#859900",
+          "gruvbox": "#b8bb26",
+          "nord": "#a3be8c",
+          "catppuccin": "#a6e3a1",
+          "everforest": "#a7c080",
+          "tokyo-night": "#9ece6a",
+          "dracula": "#50fa7b",
+          "redshift": "#cc6622"
+        }
+      },
+      "console-accent": {
+        "role": "secondary",
+        "displayName": "Console Accent Blue",
+        "canonical": "#66aaff",
+        "purpose": "Theme --accent; console selection only.",
+        "tonalRamp": [
+          "#000927",
+          "#01244c",
+          "#09417d",
+          "#1b61af",
+          "#4083d5",
+          "#63a7fc",
+          "#a8ccfa",
+          "#e4f0ff"
+        ]
+      },
+      "estimate-amber": {
+        "role": "tertiary",
+        "displayName": "Estimate Amber",
+        "canonical": "#ffae4a",
+        "purpose": "Explorer --est; EST tags and unresolved conflicts only.",
+        "tonalRamp": [
+          "#170600",
+          "#371f01",
+          "#5d3907",
+          "#885402",
+          "#b57102",
+          "#e09125",
+          "#fcba70",
+          "#feebd7"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Signal Red",
+        "canonical": "#cc4444",
+        "purpose": "Theme --danger; console alerts.",
+        "tonalRamp": [
+          "#220000",
+          "#4b0309",
+          "#810012",
+          "#ae252b",
+          "#d64d4c",
+          "#ff726e",
+          "#fbb5af",
+          "#fee9e7"
+        ]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Rust Warning",
+        "canonical": "#cc6633",
+        "purpose": "Theme --warning; console cautions.",
+        "tonalRamp": [
+          "#1e0100",
+          "#421500",
+          "#6d2b03",
+          "#9b4413",
+          "#c7612e",
+          "#ee8553",
+          "#feb696",
+          "#ffe9e0"
+        ]
+      },
+      "void-black": {
+        "role": "neutral",
+        "displayName": "Void Black",
+        "canonical": "#000000",
+        "purpose": "Page, scene background, CTA text.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "console-surface": {
+        "role": "neutral",
+        "displayName": "Console Surface",
+        "canonical": "#0a0a0a",
+        "purpose": "Theme --ui-bg; titlebars, modals, dock base.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "console-panel": {
+        "role": "neutral",
+        "displayName": "Console Panel",
+        "canonical": "#1a1a1a",
+        "purpose": "Theme --panel-bg; inset panels.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "console-border": {
+        "role": "neutral",
+        "displayName": "Console Border",
+        "canonical": "#555555",
+        "purpose": "Theme --border; 1px outlines.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "console-border-hover": {
+        "role": "neutral",
+        "displayName": "Console Border Hover",
+        "canonical": "#aaaaaa",
+        "purpose": "Theme --border-hover.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "console-text": {
+        "role": "neutral",
+        "displayName": "Console White",
+        "canonical": "#ffffff",
+        "purpose": "Theme --text.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "console-text-muted": {
+        "role": "neutral",
+        "displayName": "Console Muted",
+        "canonical": "#bbbbbb",
+        "purpose": "Theme --text-muted.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "console-text-ghost": {
+        "role": "neutral",
+        "displayName": "Console Ghost",
+        "canonical": "#777777",
+        "purpose": "Theme --text-ghost; window titles, idle icons.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Warm Ink",
+        "canonical": "#f2f1ec",
+        "purpose": "Explorer --ink; headlines and values.",
+        "tonalRamp": [
+          "#0c0b08",
+          "#262521",
+          "#43423e",
+          "#62615d",
+          "#83827e",
+          "#a6a5a0",
+          "#cac9c4",
+          "#efeeea"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink 72",
+        "canonical": "rgba(242, 241, 236, 0.72)",
+        "purpose": "Explorer --ink-2 (72% alpha); body copy, DER tag.",
+        "tonalRamp": [
+          "#0c0b08",
+          "#262521",
+          "#43423e",
+          "#62615d",
+          "#83827e",
+          "#a6a5a0",
+          "#cac9c4",
+          "#efeeea"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink 46",
+        "canonical": "rgba(242, 241, 236, 0.46)",
+        "purpose": "Explorer --ink-3 (46% alpha); labels, axes, inactive rail.",
+        "tonalRamp": [
+          "#0c0b08",
+          "#262521",
+          "#43423e",
+          "#62615d",
+          "#83827e",
+          "#a6a5a0",
+          "#cac9c4",
+          "#efeeea"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Ink Hairline",
+        "canonical": "rgba(242, 241, 236, 0.14)",
+        "purpose": "Explorer --rule (14% alpha); every rule and outline.",
+        "tonalRamp": [
+          "#0c0b08",
+          "#262521",
+          "#43423e",
+          "#62615d",
+          "#83827e",
+          "#a6a5a0",
+          "#cac9c4",
+          "#efeeea"
+        ]
+      },
+      "glass-panel": {
+        "role": "neutral",
+        "displayName": "Glass Panel",
+        "canonical": "rgba(4, 5, 7, 0.72)",
+        "purpose": "Explorer --panel (72% alpha, 12px blur); the inspector.",
+        "tonalRamp": [
+          "#0a0b0e",
+          "#232528",
+          "#404246",
+          "#5f6165",
+          "#808287",
+          "#a3a5a9",
+          "#c7c9ce",
+          "#eceff3"
+        ]
+      },
+      "caption-scrim": {
+        "role": "neutral",
+        "displayName": "Caption Scrim",
+        "canonical": "rgba(0, 0, 0, 0.62)",
+        "purpose": "62% black behind label chips and captions.",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "mli-silver": {
+        "role": "tertiary",
+        "displayName": "MLI Silver",
+        "canonical": "#c9cbce",
+        "purpose": "3D material: crinkled multi-layer insulation.",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#242527",
+          "#404244",
+          "#606164",
+          "#818285",
+          "#a3a5a8",
+          "#c7c9cc",
+          "#eceff2"
+        ]
+      },
+      "solar-substrate": {
+        "role": "tertiary",
+        "displayName": "Solar Substrate",
+        "canonical": "#b3461f",
+        "purpose": "3D material: red-orange array substrate.",
+        "tonalRamp": [
+          "#210000",
+          "#460f00",
+          "#742200",
+          "#a4380d",
+          "#cb5c37",
+          "#f3805a",
+          "#fdb69f",
+          "#ffe9e2"
+        ]
+      },
+      "solar-cell": {
+        "role": "tertiary",
+        "displayName": "Solar Cell",
+        "canonical": "#0b0e1b",
+        "purpose": "3D material: near-black cells.",
+        "tonalRamp": [
+          "#080a17",
+          "#202433",
+          "#3d4151",
+          "#5c6071",
+          "#7d8293",
+          "#9fa4b7",
+          "#c3c8dc",
+          "#e9eefe"
+        ]
+      },
+      "mirror-coat": {
+        "role": "tertiary",
+        "displayName": "Mirror Coat",
+        "canonical": "#f3f1ea",
+        "purpose": "3D material: bare mirror, metalness 1.",
+        "tonalRamp": [
+          "#0c0b07",
+          "#272520",
+          "#44423c",
+          "#63615b",
+          "#84827c",
+          "#a7a59e",
+          "#cbc9c2",
+          "#f0eee7"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Explorer chapter headlines; balanced wrap; 26px on phones."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Explorer masthead title; 16px on phones."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Inspector part name."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "A chapter's single hero number; ledger variant 20px/500 tabular."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explorer chapter copy, max 46ch; 13.5px on phones."
+      },
+      "body-small": {
+        "displayName": "Body Small",
+        "purpose": "Rail items, rows, ladder, inspector blurb."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "3D label chips, captions, source lines, meter caption."
+      },
+      "provenance-tag": {
+        "displayName": "Provenance Tag",
+        "purpose": "PUB / DER / EST, inline, raised 0.1em."
+      },
+      "console-window-title": {
+        "displayName": "Console Window Title",
+        "purpose": "Draggable-window titlebars only; uppercase."
+      }
+    },
+    "fontFaces": [
+      {
+        "family": "Overpass Mono",
+        "src": "/textures/ui/overpass-mono.ttf",
+        "weights": "400",
+        "usedBy": "console (src/styles/global.css)"
+      },
+      {
+        "family": "Roman Mono (alias of Overpass Mono)",
+        "src": "/fonts/overpass-mono-var-latin.woff2",
+        "weights": "300 700",
+        "usedBy": "explorer (src/ui/roman/RomanExplorer.svelte)"
+      }
+    ],
+    "shadows": [
+      {
+        "name": "live-glow",
+        "value": "0 0 10px var(--live)",
+        "purpose": "Breathing mission-status dot."
+      },
+      {
+        "name": "footprint-glow",
+        "value": "drop-shadow(0 0 4px rgba(68, 255, 68, 0.55))",
+        "purpose": "Detector outlines over the star field (filter)."
+      },
+      {
+        "name": "cta-hover-glow",
+        "value": "0 6px 24px -8px var(--live)",
+        "purpose": "Forward CTA on hover only."
+      },
+      {
+        "name": "floating-chrome",
+        "value": "0 8px 28px rgba(0, 0, 0, 0.45)",
+        "purpose": "Console dock and mobile nav."
+      },
+      {
+        "name": "tooltip",
+        "value": "0 4px 12px rgba(0,0,0,0.5)",
+        "purpose": "Console info tips."
+      }
+    ],
+    "surfaces": [
+      {
+        "name": "inspector-glass",
+        "value": "background: rgba(4,5,7,0.72); backdrop-filter: blur(12px)",
+        "purpose": "Explorer inspector."
+      },
+      {
+        "name": "console-glass",
+        "value": "background: color-mix(in srgb, var(--ui-bg) 72%, transparent); backdrop-filter: blur(16px) saturate(1.5)",
+        "purpose": "Console dock and mobile nav; solid --ui-bg fallback."
+      },
+      {
+        "name": "rail-gradient",
+        "value": "linear-gradient(to top, rgba(0,0,0,0.86), rgba(0,0,0,0.5))",
+        "purpose": "Chapter rail on desktop; solid #000 on phones."
+      },
+      {
+        "name": "sky-vignette",
+        "value": "linear-gradient(90deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.45) 30%, rgba(0,0,0,0) 52%), linear-gradient(0deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 22%), linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 18%)",
+        "purpose": "Keeps copy and chrome legible over the star field."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-arrive",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Every explorer entrance, fade and underline."
+      },
+      {
+        "name": "arrive",
+        "value": "@keyframes arrive { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } }",
+        "purpose": "0.9s chapter copy and captions (captions delayed 0.6s); 0.5s inspector and parts index."
+      },
+      {
+        "name": "trace",
+        "value": "1.4s ease-arrive, stagger 40ms after 120ms",
+        "purpose": "Detector outlines fading in."
+      },
+      {
+        "name": "sky-fade",
+        "value": "opacity 1.1s ease-arrive",
+        "purpose": "Star field hand-over to the 3D detectors."
+      },
+      {
+        "name": "rail-underline",
+        "value": "transform 0.5s ease-arrive",
+        "purpose": "Current-chapter underline growing from the left."
+      },
+      {
+        "name": "hover-border",
+        "value": "border-color 0.2s",
+        "purpose": "Ghost, exit and arrow buttons."
+      },
+      {
+        "name": "breathe",
+        "value": "2.6s ease-in-out infinite to opacity 0.35 (1.2s for loading)",
+        "purpose": "Status dot and loading square."
+      },
+      {
+        "name": "console-hover",
+        "value": "color .16s ease, background-color .16s ease",
+        "purpose": "Console dock buttons."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "@media (prefers-reduced-motion: reduce)",
+        "purpose": "Removes arrive/trace/breathe and transitions; camera flights run at 0s, autorotate off."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "max-width: 767px"
+      },
+      {
+        "name": "short",
+        "value": "max-height: 940px"
+      },
+      {
+        "name": "coarse",
+        "value": "pointer: coarse"
+      }
+    ],
+    "lighting3d": {
+      "toneMapping": "ACESFilmic, exposure 1.0",
+      "key": "DirectionalLight 0xfff3e2 @ 3.9",
+      "fill": "DirectionalLight 0x8fa6c8 @ 0.32",
+      "ambient": "AmbientLight 0x1a2030 @ 0.35",
+      "lightPath": "trail 0xdde9ff 1.3px @0.34, pulse 0xffffff 2.6px; coronagraph trail 0x44ff44, pulse 0xb8ffb8",
+      "selectionEmissive": "0x8cff8c"
+    }
+  },
+  "components": [
+    {
+      "name": "Forward CTA",
+      "kind": "button",
+      "refersTo": "button-cta",
+      "description": "The one filled action per explorer view, at the head of the chapter rail; labels the next chapter.",
+      "html": "<button class=\"ds-cta\">Pull back <svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"square\"><path d=\"M2.5 8h10M9 4.5 12.5 8 9 11.5\"/></svg></button>",
+      "css": ".ds-cta{font-family:'Overpass Mono',ui-monospace,monospace;display:inline-flex;gap:12px;align-items:center;cursor:pointer;white-space:nowrap;background:var(--live, #44ff44);color:#000;border:none;border-radius:0;padding:11px 16px 11px 18px;font-weight:600;font-size:13px;letter-spacing:0.01em;transition:box-shadow 0.25s;} .ds-cta svg{display:block;transition:transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);} .ds-cta:hover{box-shadow:0 6px 24px -8px var(--live, #44ff44);} .ds-cta:hover svg{transform:translateX(3px);} .ds-cta:focus-visible{outline:1px solid var(--live, #44ff44);outline-offset:3px;}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Every secondary explorer action: hairline outline, ink text, border to full ink on hover.",
+      "html": "<div class=\"ds-ghost-wrap\"><button class=\"ds-ghost\">Trace it again</button> <button class=\"ds-ghost\" disabled>Unfolding…</button></div>",
+      "css": ".ds-ghost-wrap{--ink:#f2f1ec;--ink-2:rgba(242,241,236,0.72);--ink-3:rgba(242,241,236,0.46);--rule:rgba(242,241,236,0.14);--est:#ffae4a;--panel:rgba(4,5,7,0.72);background:#000;padding:12px;display:flex;gap:8px;} .ds-ghost{font-family:'Overpass Mono',ui-monospace,monospace;background:none;border:1px solid var(--rule);border-radius:0;padding:7px 12px;cursor:pointer;font-size:12px;color:var(--ink);transition:border-color 0.2s;} .ds-ghost:hover:not(:disabled){border-color:var(--ink);} .ds-ghost:disabled{color:var(--ink-3);cursor:default;} .ds-ghost:focus-visible{outline:1px solid var(--live, #44ff44);outline-offset:3px;}"
+    },
+    {
+      "name": "Chapter Rail",
+      "kind": "nav",
+      "refersTo": "chapter-rail",
+      "description": "Bottom navigation: previous arrow, chapter list with a live-green underline on the current step, forward CTA at its head.",
+      "html": "<nav class=\"ds-rail\"><button class=\"ds-rail-arrow\" aria-label=\"Previous chapter\"><svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"square\"><path d=\"M13.5 8h-10M7 4.5 3.5 8 7 11.5\"/></svg></button><ol><li><button class=\"on\" aria-current=\"step\">What it sees</button></li><li><button>The detectors</button></li><li><button>The light path</button></li></ol><button class=\"ds-rail-cta\">Pull back <svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"square\"><path d=\"M2.5 8h10M9 4.5 12.5 8 9 11.5\"/></svg></button></nav>",
+      "css": ".ds-rail{--ink:#f2f1ec;--ink-2:rgba(242,241,236,0.72);--ink-3:rgba(242,241,236,0.46);--rule:rgba(242,241,236,0.14);--est:#ffae4a;--panel:rgba(4,5,7,0.72);font-family:'Overpass Mono',ui-monospace,monospace;display:flex;align-items:center;gap:4px;min-height:64px;padding:0 20px;border-top:1px solid var(--rule);background:linear-gradient(to top,rgba(0,0,0,0.86),rgba(0,0,0,0.5)),#000;color:var(--ink);} .ds-rail ol{list-style:none;margin:0;padding:0;display:flex;flex:1;justify-content:center;gap:2px;} .ds-rail li button{font-family:'Overpass Mono',ui-monospace,monospace;position:relative;background:none;border:none;cursor:pointer;white-space:nowrap;padding:12px 14px;font-size:12.5px;color:var(--ink-3);transition:color 0.25s;} .ds-rail li button::after{content:'';position:absolute;left:14px;right:14px;bottom:6px;height:1px;background:var(--live, #44ff44);transform:scaleX(0);transform-origin:left;transition:transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);} .ds-rail li button:hover,.ds-rail li button.on{color:var(--ink);} .ds-rail li button.on::after{transform:scaleX(1);} .ds-rail-arrow{display:grid;place-items:center;background:none;border:1px solid var(--rule);width:36px;height:36px;cursor:pointer;color:var(--ink);transition:border-color 0.2s;} .ds-rail-arrow:hover{border-color:var(--ink);} .ds-rail-cta{font-family:'Overpass Mono',ui-monospace,monospace;display:inline-flex;gap:12px;align-items:center;cursor:pointer;background:var(--live, #44ff44);color:#000;border:none;padding:11px 16px 11px 18px;font-weight:600;font-size:13px;} .ds-rail button:focus-visible{outline:1px solid var(--live, #44ff44);outline-offset:3px;}"
+    },
+    {
+      "name": "Provenance Tags",
+      "kind": "chip",
+      "refersTo": "chip-provenance-pub",
+      "description": "PUB / DER / EST set inline with the value they qualify; meaning in the abbr title.",
+      "html": "<p class=\"ds-prov\">Diameter 2.4 m <abbr class=\"ds-t pub\" title=\"Published by NASA, L3Harris or peer review\">PUB</abbr> · Area 0.281 deg² <abbr class=\"ds-t der\" title=\"Derived from published figures\">DER</abbr> · Curvature 5.76 m <abbr class=\"ds-t est\" title=\"Estimated; not yet grounded in a source\">EST</abbr></p>",
+      "css": ".ds-prov{--ink:#f2f1ec;--ink-2:rgba(242,241,236,0.72);--ink-3:rgba(242,241,236,0.46);--rule:rgba(242,241,236,0.14);--est:#ffae4a;--panel:rgba(4,5,7,0.72);font-family:'Overpass Mono',ui-monospace,monospace;background:#000;color:var(--ink);font-size:12px;padding:12px;margin:0;} .ds-t{font-size:10px;letter-spacing:0.06em;font-weight:500;text-decoration:none;cursor:help;vertical-align:0.1em;margin-left:2px;} .ds-t.pub{color:var(--live, #44ff44);} .ds-t.der{color:var(--ink-2);} .ds-t.est{color:var(--est);}"
+    },
+    {
+      "name": "3D-Anchored Label",
+      "kind": "custom",
+      "refersTo": "label-3d-chip",
+      "description": "Pin on the part, 1px leader at 50% opacity, chip on the caption scrim placed clear of chrome.",
+      "html": "<div class=\"ds-tagstage\"><div class=\"ds-tag\"><i></i><b></b><span>Element wheel</span></div><div class=\"ds-tag lit\" style=\"top:78px;left:60px\"><i></i><b></b><span>18 H4RG-10 detectors</span></div></div>",
+      "css": ".ds-tagstage{--ink:#f2f1ec;--ink-2:rgba(242,241,236,0.72);--ink-3:rgba(242,241,236,0.46);--rule:rgba(242,241,236,0.14);--est:#ffae4a;--panel:rgba(4,5,7,0.72);font-family:'Overpass Mono',ui-monospace,monospace;position:relative;height:130px;background:#000;} .ds-tag{position:absolute;left:40px;top:34px;font-size:11px;white-space:nowrap;color:var(--ink-3);transition:color 0.35s;} .ds-tag i{position:absolute;left:-2.5px;top:-2.5px;width:5px;height:5px;border-radius:50%;background:currentColor;} .ds-tag b{position:absolute;left:0;top:0;height:1px;width:28px;background:currentColor;opacity:0.5;transform:rotate(-0.3rad);transform-origin:0 50%;} .ds-tag span{position:absolute;left:26px;top:-22px;padding:2px 6px;background:rgba(0,0,0,0.62);border:1px solid var(--rule);} .ds-tag.lit{color:var(--ink);} .ds-tag:hover{color:var(--ink);}"
+    },
+    {
+      "name": "Inspector Panel",
+      "kind": "card",
+      "refersTo": "inspector-panel",
+      "description": "Glass side panel for a selected part: title, blurb, tabular fact table with tags, Frame / Isolate ghosts.",
+      "html": "<aside class=\"ds-ins\"><div class=\"ds-ins-head\"><h3>Primary mirror</h3><button class=\"ds-ins-x\" aria-label=\"Close details\"><svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"square\"><path d=\"M4 4l8 8M12 4l-8 8\"/></svg></button></div><p class=\"ds-ins-blurb\">The 2.4 m mirror that gathers the light.</p><table><tbody><tr><th>Diameter</th><td>2.4 m</td><td class=\"tc\"><abbr class=\"ds-it pub\">PUB</abbr></td></tr><tr><th>Radius of curvature</th><td>5.76 m</td><td class=\"tc\"><abbr class=\"ds-it est\">EST</abbr></td></tr></tbody></table><div class=\"ds-ins-actions\"><button>Frame</button><button>Isolate</button></div></aside>",
+      "css": ".ds-ins{--ink:#f2f1ec;--ink-2:rgba(242,241,236,0.72);--ink-3:rgba(242,241,236,0.46);--rule:rgba(242,241,236,0.14);--est:#ffae4a;--panel:rgba(4,5,7,0.72);font-family:'Overpass Mono',ui-monospace,monospace;width:330px;background:var(--panel);border:1px solid var(--rule);padding:16px 18px 14px;backdrop-filter:blur(12px);color:var(--ink);font-size:14px;line-height:1.5;} .ds-ins-head{display:flex;justify-content:space-between;gap:12px;} .ds-ins h3{margin:0;font-size:19px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;} .ds-ins-x{background:none;border:none;cursor:pointer;color:var(--ink-3);padding:4px;margin:-4px -4px 0 0;} .ds-ins-x:hover{color:var(--ink);} .ds-ins-blurb{margin:12px 0 10px;font-size:12.5px;color:var(--ink-2);} .ds-ins table{width:100%;border-collapse:collapse;font-size:12px;} .ds-ins th{text-align:left;font-weight:400;color:var(--ink-3);padding:4px 0;} .ds-ins td{text-align:right;padding:4px 0 4px 8px;font-variant-numeric:tabular-nums;} .ds-ins td.tc{width:34px;} .ds-ins tr+tr th,.ds-ins tr+tr td{border-top:1px solid rgba(242,241,236,0.06);} .ds-it{font-size:10px;letter-spacing:0.06em;font-weight:500;text-decoration:none;} .ds-it.pub{color:var(--live, #44ff44);} .ds-it.est{color:var(--est);} .ds-ins-actions{display:flex;gap:8px;} .ds-ins-actions button{font-family:'Overpass Mono',ui-monospace,monospace;background:none;border:1px solid var(--rule);padding:7px 12px;margin-top:10px;cursor:pointer;font-size:12px;color:var(--ink);transition:border-color 0.2s;} .ds-ins-actions button:hover{border-color:var(--ink);} .ds-ins button:focus-visible{outline:1px solid var(--live, #44ff44);outline-offset:3px;}"
+    },
+    {
+      "name": "Temperature Ladder",
+      "kind": "custom",
+      "refersTo": "figure",
+      "description": "Figure form: rows on one shared 20 °C to −190 °C scale, hairline track, ink gradient fill, live-green reading tick.",
+      "html": "<div class=\"ds-ladder\"><span class=\"axis\"><span>20 °C</span><span>−190 °C</span></span><span class=\"l\">Primary mirror</span><span class=\"track\"><i style=\"width:12.9%\"></i></span><span class=\"v\">−7 °C</span><abbr class=\"t\">PUB</abbr><span class=\"l\">Detectors</span><span class=\"track\"><i style=\"width:94.3%\"></i></span><span class=\"v\">−178 °C</span><abbr class=\"t\">PUB</abbr></div>",
+      "css": ".ds-ladder{--ink:#f2f1ec;--ink-2:rgba(242,241,236,0.72);--ink-3:rgba(242,241,236,0.46);--rule:rgba(242,241,236,0.14);--est:#ffae4a;--panel:rgba(4,5,7,0.72);font-family:'Overpass Mono',ui-monospace,monospace;background:#000;padding:14px;display:grid;grid-template-columns:max-content 1fr max-content max-content;align-items:center;gap:7px 12px;font-size:12.5px;max-width:400px;color:var(--ink);} .ds-ladder .axis{grid-column:2;display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);margin-bottom:-3px;} .ds-ladder .l{grid-column:1;color:var(--ink-2);} .ds-ladder .track{position:relative;height:1px;background:var(--rule);} .ds-ladder .track i{position:absolute;left:0;top:0;height:1px;background:linear-gradient(90deg,rgba(242,241,236,0.2),var(--ink));} .ds-ladder .track i::after{content:'';position:absolute;right:-1px;top:-4px;width:2px;height:9px;background:var(--live, #44ff44);} .ds-ladder .v{text-align:right;font-variant-numeric:tabular-nums;} .ds-ladder .t{font-size:10px;letter-spacing:0.06em;font-weight:500;color:var(--live, #44ff44);text-decoration:none;}"
+    },
+    {
+      "name": "In-Figure Caption",
+      "kind": "custom",
+      "refersTo": "caption-figure",
+      "description": "Caption on a 62% scrim; a figure legend adds a 1px live-green left rule.",
+      "html": "<div class=\"ds-capstage\"><div class=\"ds-cap ds-legend\"><p>Roman Wide Field Instrument · 0.281 deg² <abbr>PUB</abbr></p><p class=\"sim\">Synthetic star field, not a Roman image</p></div></div>",
+      "css": ".ds-capstage{--ink:#f2f1ec;--ink-2:rgba(242,241,236,0.72);--ink-3:rgba(242,241,236,0.46);--rule:rgba(242,241,236,0.14);--est:#ffae4a;--panel:rgba(4,5,7,0.72);font-family:'Overpass Mono',ui-monospace,monospace;background:#0b0a08;padding:18px;} .ds-cap{display:inline-block;white-space:nowrap;font-size:11px;color:var(--ink-2);padding:3px 7px;background:rgba(0,0,0,0.62);animation:ds-arrive 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;} .ds-legend{display:inline-grid;gap:1px;border-left:1px solid var(--live, #44ff44);} .ds-legend p{margin:0;color:var(--ink);} .ds-legend .sim{color:var(--ink-2);} .ds-legend abbr{font-size:10px;letter-spacing:0.06em;font-weight:500;color:var(--live, #44ff44);text-decoration:none;} @keyframes ds-arrive{from{opacity:0;transform:translateY(14px);filter:blur(4px);}} @media (prefers-reduced-motion: reduce){.ds-cap{animation:none;}}"
+    },
+    {
+      "name": "Console Button",
+      "kind": "button",
+      "refersTo": "console-button",
+      "description": "The tracker shared Button: 1px theme border, dim text, accent blue when active.",
+      "html": "<div class=\"ds-cwrap\"><button class=\"ds-cbtn\">Passes</button> <button class=\"ds-cbtn active\">Sky</button></div>",
+      "css": ".ds-cwrap{font-family:'Overpass Mono','Courier New',monospace;background:var(--bg,#000);padding:12px;display:flex;gap:6px;} .ds-cbtn{font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:3px;background:none;border:1px solid var(--border,#555);border-radius:0;color:var(--text-dim,#eee);font-size:11px;padding:3px 10px;} .ds-cbtn:hover{border-color:var(--border-hover,#aaa);color:var(--text,#fff);} .ds-cbtn.active{color:var(--accent,#66aaff);border-color:var(--accent,#66aaff);} .ds-cbtn:focus-visible{outline:1px solid var(--border-hover,#aaa);outline-offset:2px;}"
+    },
+    {
+      "name": "Console Window Titlebar",
+      "kind": "custom",
+      "refersTo": "console-window-titlebar",
+      "description": "Draggable window chrome: uppercase 11px ghost title on the UI surface, 1px bottom border.",
+      "html": "<div class=\"ds-win\"><div class=\"ds-win-bar\"><span>Passes</span><button aria-label=\"Close\"><svg viewBox=\"0 0 12 12\" width=\"10\" height=\"10\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><line x1=\"2\" y1=\"2\" x2=\"10\" y2=\"10\"/><line x1=\"10\" y1=\"2\" x2=\"2\" y2=\"10\"/></svg></button></div><div class=\"ds-win-body\">AOS 14:02 · max el 61°</div></div>",
+      "css": ".ds-win{font-family:'Overpass Mono','Courier New',monospace;width:260px;background:var(--modal-bg,#0a0a0a);border:1px solid var(--border,#555);font-size:13px;color:var(--text-muted,#bbb);} .ds-win-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border,#555);background:var(--ui-bg,#0a0a0a);cursor:grab;} .ds-win-bar span{font-size:11px;color:var(--text-ghost,#777);text-transform:uppercase;letter-spacing:1px;} .ds-win-bar button{background:none;border:none;color:var(--text-ghost,#777);padding:0;cursor:pointer;line-height:0;} .ds-win-bar button:hover{color:var(--text-dim,#eee);} .ds-win-body{padding:8px;font-size:11px;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Console",
+    "overview": "Orbital Works is a black-field instrument. Everything sits on pure black (#000), is set in one monospace family, Overpass Mono, and is drawn with grey hairlines rather than filled surfaces. Colour is scarce and it means something. The theme's live green marks what is active, measured, or confirmed. Amber marks what is estimated. The coloured fields that remain belong to the objects themselves, whether that is a satellite's ground track or the Roman observatory's silver blankets and red-orange solar substrate. The interface never supplies decorative colour of its own.\n\nThe system has two registers built from the same materials. The **tracker console** is dense: draggable windows with a thin titlebar, 9 to 12px text, a floating blurred dock, and twelve interchangeable themes behind CSS variables on `:root`. The **Roman explorer** is the landing view and sits over the whole app. It uses the same black, the same family and the same live green at a reading scale: 14.5px body, 46px chapter headlines, square outlined controls, and a full-bleed three.js stage whose labels are drawn in the interface's own type. Density changes between the two registers. The vocabulary does not.\n\nHardware must read as hardware. The 3D stage uses ACES filmic tone mapping, a warm key light (0xfff3e2), a cool fill and a near-black ambient. Surfaces are physically based materials in their flight colours. Provenance is set as type: every figure the explorer shows carries a PUB, DER or EST tag in the text itself.",
+    "keyCharacteristics": [
+      "Pure black ground, with no tinted background washes behind the interface.",
+      "One family, Overpass Mono, for every role from the 46px display size down to the 10px tags.",
+      "Live green (#44ff44 in the default theme) is the only UI accent in the explorer, and it always means \"active, measured, confirmed\".",
+      "Structure comes from hairlines (1px, grey or 14% ink) and scrims, never from filled cards.",
+      "3D objects appear in their real flight materials. The UI palette never tints the hardware.",
+      "Provenance tags (PUB / DER / EST) sit inline with the numbers they qualify."
+    ],
+    "rules": [
+      {
+        "name": "The Live Means Live Rule",
+        "body": "Green is never decoration. If an element is green, it is active, measured, selected, or published. Everything else is ink or grey.",
+        "section": "colors"
+      },
+      {
+        "name": "The Hardware Keeps Its Colours Rule",
+        "body": "The object's own materials (silver MLI, near-black cells on red-orange substrate, bare mirror) are the only saturated fields in the 3D stage. The UI palette never tints the model, apart from the green selection emissive.",
+        "section": "colors"
+      },
+      {
+        "name": "The Amber Is For Guesses Rule",
+        "body": "Estimate amber marks estimated or conflicting values and nothing else. It is not a warning colour in the explorer.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Family Rule",
+        "body": "Overpass Mono is the only typeface. Do not introduce a second family for display or body text.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tags Are Type Rule",
+        "body": "Provenance tags are set inline at 10px/500 in their tag colour, next to the value they qualify, with the tag's full meaning in an `<abbr title>`. They are part of the line and do not go in footnotes.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Figures Rule",
+        "body": "Any column of numbers (fact tables, ladder values, ledger values) uses `font-variant-numeric: tabular-nums` and is right-aligned where it forms a column.",
+        "section": "typography"
+      },
+      {
+        "name": "The Glow Is Green Rule",
+        "body": "The only coloured shadows are soft glows of the live colour on live elements. Nothing uses a hard or offset shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep the ground pure black (#000) and set everything in Overpass Mono.",
+      "Do use the theme's `--live` for anything active, measured, selected or published, and for nothing else.",
+      "Do tag every hardware figure PUB, DER or EST inline, in the tag colours, with its meaning in `title`.",
+      "Do draw structure with 1px hairlines (`hairline` in the explorer, `--border` in the console) and back floating text with the 62% caption scrim.",
+      "Do give each explorer view exactly one filled live-green action, placed at the head of the chapter rail. Everything else is a ghost.",
+      "Do place 3D labels clear of every piece of chrome and hide them when there is no clear slot.",
+      "Do render hardware in its flight materials: silver-grey crinkled MLI, near-black cells on red-orange substrate, bare mirror coat.",
+      "Do use `cubic-bezier(0.22, 1, 0.36, 1)` for entrances and honour `prefers-reduced-motion` in both CSS and camera script.",
+      "Do keep icons as single-stroke 16px-viewBox SVGs in `currentColor`."
+    ],
+    "donts": [
+      "Don't add a second typeface, or a system sans for display text.",
+      "Don't use green, amber or accent blue decoratively. Each carries a meaning.",
+      "Don't tint the observatory model with UI colours, and don't render its blankets gold. The flight hardware is silver.",
+      "Don't nest content in filled cards. Windows, the inspector and the dock are the only containers. Don't use hard or offset shadows, or small uppercase labels above headings.",
+      "Don't push provenance into footnotes or tooltips alone. The tag sits in the line.",
+      "Don't use text glyphs rendered in a sans-serif as icons."
+    ]
+  }
+}
