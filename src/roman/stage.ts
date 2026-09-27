@@ -378,7 +378,9 @@ export class RomanStage {
         const s = b.getSize(new THREE.Vector3());
         // Straight down. Landscape: the six columns run across the screen;
         // portrait: rotate a quarter turn so they run down it.
-        const d = portrait ? this.fitDist(s.z, s.x, 0.62) : this.fitDist(s.x, s.z, 0.5);
+        // Portrait: the mosaic sits in the band between the masthead and the
+        // chapter copy, a third of the screen tall.
+        const d = portrait ? this.fitDist(s.z, s.x, 0.34) : this.fitDist(s.x, s.z, 0.5);
         const pose: Pose = { target: c.clone(), dist: d, theta: portrait ? -Math.PI / 2 : 0, phi: 0.0009 };
         // Frame the mosaic clear of the chapter copy: right of it on wide
         // screens, above it on tall ones. Shift the look-at point along the
@@ -388,7 +390,7 @@ export class RomanStage {
         const up = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
         const vf = THREE.MathUtils.degToRad(this.camera.fov) / 2;
         const visH = 2 * d * Math.tan(vf), visW = visH * this.aspect;
-        if (portrait) pose.target.addScaledVector(up, -0.17 * visH);
+        if (portrait) pose.target.addScaledVector(up, -0.2 * visH);
         else pose.target.addScaledVector(right, -0.14 * visW);
         return pose;
       }

@@ -22,7 +22,7 @@
   // The opening: a star field with the detectors drawn over it.
   let skyOn = $state(true);
   let outlines = $state<{ x: number; y: number }[][]>([]);
-  let hubble = $state<{ x: number; y: number; w: number; h: number } | null>(null);
+  let hubble = $state<{ x: number; y: number; w: number; h: number; below: boolean } | null>(null);
   let focalPose: Pose | null = null;
   /** How far the sky outside the detectors is dimmed; deepens as the view pulls back. */
   let skyDim = $state(0.38);
@@ -103,7 +103,9 @@
     const d0 = lines[0];
     const detPx = Math.hypot(d0[1].x - d0[0].x, d0[1].y - d0[0].y);
     const W = host.clientWidth, H = host.clientHeight;
-    const dpr = Math.min(devicePixelRatio || 1, 1.5);
+    // Paint at the screen's density (capped): a soft field upscaled 2x on a
+    // phone reads as blobs, not stars.
+    const dpr = Math.min(devicePixelRatio || 1, W < 768 ? 2.5 : 1.5);
     const field = paintBulgeField(Math.round(W * dpr), Math.round(H * dpr), DETECTOR_ARCMIN / detPx / dpr);
     Object.assign(field.style, { position: 'absolute', inset: '0', width: '100%', height: '100%' });
     skyHost.querySelector('canvas')?.remove();
@@ -116,7 +118,7 @@
     for (const q of lines) for (const p of q) { maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
     const hw = detPx * HUBBLE_IR_ARCMIN[0] / DETECTOR_ARCMIN, hh = detPx * HUBBLE_IR_ARCMIN[1] / DETECTOR_ARCMIN;
     // Just under the mosaic's right end, where the eye lands after reading it.
-    hubble = { x: maxX - hw - detPx * 0.15, y: maxY + detPx * 0.32, w: hw, h: hh };
+    hubble = { x: maxX - hw - detPx * 0.15, y: maxY + detPx * 0.32, w: hw, h: hh, below: W < H };
   }
 
   /* ------------------------------------------------------------- chapters -- */
@@ -235,11 +237,11 @@
       }
       case 'deploy': {
         skyOn = false;
+        // Fold up during the flight, so it arrives in its launch configuration.
+        setDeploy(0);
         await s.fly([s.shot('deploy')], first ? 0 : 2.4);
         if (!alive()) return;
-        setDeploy(0);
-        // Hold the launch configuration long enough to read it.
-        await wait(reducedMotion ? 0 : 2200);
+        await wait(reducedMotion ? 0 : 1800);
         if (alive()) playDeploy(token);
         break;
       }
@@ -476,9 +478,11 @@
       {/if}
     </svg>
     {#if hubble}
-      <div class="hst-label" style:left="{hubble.x - 10}px" style:top="{hubble.y + hubble.h / 2}px">Hubble’s infrared camera, same scale</div>
+      <div class="hst-label" class:below={hubble.below}
+        style:left="{hubble.below ? hubble.x + hubble.w : hubble.x - 10}px"
+        style:top="{hubble.below ? hubble.y + hubble.h + 8 : hubble.y + hubble.h / 2}px">Hubble’s infrared camera, same scale</div>
     {/if}
-    <p class="synthetic">Synthetic star field toward the Galactic bulge — not a Roman image.</p>
+    <p class="synthetic long">Synthetic star field toward the Galactic bulge — not a Roman image.</p>
   </div>
 
   <!-- 3D-anchored labels -->
@@ -495,7 +499,8 @@
     <h1>Nancy Grace Roman<br />Space Telescope</h1>
     <p class="status">
       <span class="dot" aria-hidden="true"></span>
-      <span>Launched 30 August 2026 · day {missionDay}<span class="long"> · commissioning on the way to L2</span></span>
+      <span class="long">Launched 30 August 2026 · day {missionDay} · commissioning on the way to L2</span>
+      <span class="short">Day {missionDay} since launch · en route to L2</span>
     </p>
   </header>
 
@@ -506,7 +511,7 @@
       </div>
       <span>{grounded} of {PROVENANCE_TOTAL} dimensions published or derived</span>
     </div>
-    <button class="exit" onclick={enterTracker}><span class="long">Enter the </span>tracker <span aria-hidden="true">→</span></button>
+    <button class="exit" onclick={enterTracker}><span class="long">Enter the{' '}</span>tracker <span aria-hidden="true">→</span></button>
   </div>
 
   {#if status !== 'ready'}
@@ -570,6 +575,7 @@
       {#if ch.next}
         <button class="next" onclick={next}>{ch.next} <span aria-hidden="true">→</span></button>
       {/if}
+      {#if ch.id === 'sky'}<p class="source short">The star field is synthetic, not a Roman image.</p>{/if}
       {#if ch.source}<p class="source">Source: <a href="https://{ch.source}" target="_blank" rel="noreferrer">{ch.source}</a></p>{/if}
     </article>
   {/key}
@@ -663,6 +669,7 @@
     pointer-events: auto;
   }
   .rx ::selection { background: var(--live); color: #000; }
+  .short { display: none; }
   .rx button { font: inherit; color: inherit; }
   .rx :focus-visible { outline: 1px solid var(--live); outline-offset: 3px; }
 
@@ -694,6 +701,7 @@
   }
   .foot .hst { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 2; }
   @keyframes trace { from { opacity: 0; stroke-opacity: 0; } to { opacity: 1; } }
+  .hst-label.below { transform: translateX(-100%); }
   .hst-label {
     position: absolute; transform: translate(-100%, -50%); white-space: nowrap;
     font-size: 11px; color: var(--ink-2); letter-spacing: 0.02em;
@@ -901,6 +909,9 @@
     .mast h1 { font-size: 16px; }
     .status { font-size: 10.5px; margin-top: 6px; }
     .long { display: none; }
+    .short { display: revert; }
+    .copy .next { position: sticky; bottom: 0; }
+    .copy .source { margin-bottom: 4px !important; }
     .top-right { right: 14px; top: 14px; gap: 10px; }
     .prov { display: none; }
     .exit { padding: 7px 10px; font-size: 11px; }

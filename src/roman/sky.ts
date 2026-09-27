@@ -92,7 +92,9 @@ export function paintBulgeField(w: number, h: number, arcminPerPx: number, seed 
   // dwarfs, a few blue foreground stars. Counts scale with sky area.
   const rand = mulberry32(seed * 9973);
   const areaArcmin = w * h * arcminPerPx * arcminPerPx;
-  const count = Math.min(70_000, Math.round(areaArcmin * 14));
+  // By sky area, but never denser than one star per ~26 px, or small
+  // screens fill up.
+  const count = Math.min(70_000, Math.round(areaArcmin * 14), Math.round((w * h) / 26));
   const palette = ['255,214,170', '255,228,196', '255,196,140', '255,240,222', '214,226,255', '255,176,120'];
   for (let k = 0; k < count; k++) {
     const x = rand() * w, y = rand() * h;
