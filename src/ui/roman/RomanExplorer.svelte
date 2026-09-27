@@ -29,7 +29,8 @@
 
   // Light path chapter: which stop the photon front has reached.
   let stopIndex = $state(-1);
-  let stops = $state<{ id: string; label: string }[]>([]);
+  /** In trace order, detectors first; `back` is metres from the focal plane, `k` the stop's point. */
+  let stops = $state<{ id: string; label: string; back: number; k: number }[]>([]);
   // Deploy chapter: which step of the flown sequence is showing.
   let deployStep = $state(0);
   let deployPlaying = $state(false);
@@ -43,6 +44,23 @@
   let stowed = $state(false);
   let showLight = $state(false);
   let indexOpen = $state(false);
+
+  // The opening's captions, placed once they can be measured.
+  let mosaic: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+  let hstEl = $state<HTMLDivElement | null>(null);
+  let legendEl = $state<HTMLDivElement | null>(null);
+  let hstPos = $state<{ x: number; y: number } | null>(null);
+  let legendPos = $state<{ x: number; y: number } | null>(null);
+
+  // Everything the 3D labels keep clear of.
+  let mastEl = $state<HTMLElement | null>(null);
+  let topEl = $state<HTMLElement | null>(null);
+  let copyEl = $state<HTMLElement | null>(null);
+  let railEl = $state<HTMLElement | null>(null);
+  let inspectorEl = $state<HTMLElement | null>(null);
+  let railH = $state(64);
+  /** The chapter copy overflows its panel and has more below. */
+  let copyMore = $state(false);
 
   const sel = $derived<Subsystem | null>(selSub ? SUBSYSTEM[selSub] ?? null : null);
   const missionDay = Math.max(1, Math.floor((Date.now() - LAUNCH) / 86_400_000) + 1);
@@ -75,7 +93,7 @@
     s.onFrame = frame;
     s.ready.then(async () => {
       if (stage !== s) return;
-      stops = s.light?.stops.map((st) => ({ id: st.id, label: st.label })) ?? [];
+      stops = (s.light?.stops.map((st, k) => ({ id: st.id, label: st.label, back: st.back, k })) ?? []).reverse();
       status = 'ready';
       await tick();
       prepareSky();
@@ -114,11 +132,38 @@
     tex.colorSpace = THREE.SRGBColorSpace;
     s.setSkyProjection(tex, focalPose);
     outlines = lines;
-    let maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const q of lines) for (const p of q) { maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const q of lines) for (const p of q) {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }
+    mosaic = { minX, minY, maxX, maxY };
     const hw = detPx * HUBBLE_IR_ARCMIN[0] / DETECTOR_ARCMIN, hh = detPx * HUBBLE_IR_ARCMIN[1] / DETECTOR_ARCMIN;
     // Just under the mosaic's right end, where the eye lands after reading it.
     hubble = { x: maxX - hw - detPx * 0.15, y: maxY + detPx * 0.32, w: hw, h: hh, below: W < H };
+    tick().then(layoutSky);
+  }
+
+  /**
+   * Hubble's label beside its square, and the figure legend under the
+   * mosaic's left end, both kept on screen and clear of each other.
+   */
+  function layoutSky() {
+    if (!hubble || !mosaic || !host || !hstEl || !legendEl) return;
+    const W = host.clientWidth, H = host.clientHeight;
+    const lw = hstEl.offsetWidth, lh = hstEl.offsetHeight, gw = legendEl.offsetWidth, gh = legendEl.offsetHeight;
+    const clampX = (x: number, w: number) => Math.max(16, Math.min(W - 16 - w, x));
+    const hst = hubble.below
+      ? { x: clampX(hubble.x + hubble.w - lw, lw), y: hubble.y + hubble.h + 8 }
+      : { x: clampX(hubble.x - 12 - lw, lw), y: hubble.y + hubble.h / 2 - lh / 2 };
+    const g = { x: clampX(mosaic.minX, gw), y: hubble.y, w: gw, h: gh };
+    const square = { x: hubble.x, y: hubble.y, w: hubble.w, h: hubble.h };
+    if (hits(g, { ...hst, w: lw, h: lh }, 16) || hits(g, square, 16)) g.y = Math.max(hst.y + lh, hubble.y + hubble.h) + 12;
+    // Never under the chapter copy or the rail: go above the mosaic instead.
+    const o = host.getBoundingClientRect(), r = copyEl?.getBoundingClientRect();
+    const copy = r ? { x: r.left - o.left, y: r.top - o.top, w: r.width, h: r.height } : null;
+    if ((copy && hits(g, copy, 8)) || g.y + gh > H - railH - 8) g.y = mosaic.minY - gh - 12;
+    hstPos = hst;
+    legendPos = { x: g.x, y: g.y };
   }
 
   /* ------------------------------------------------------------- chapters -- */
@@ -144,6 +189,12 @@
   }
 
   const around = (target: THREE.Vector3, dist: number, theta: number, phi: number): Pose => ({ target, dist, theta, phi });
+  /** On a tall screen the copy covers the lower half: frame the subject in the band above it. */
+  const lift = (s: RomanStage, p: Pose, k: number, zoom = 1.2): Pose => {
+    if (!host || host.clientHeight <= host.clientWidth) return p;
+    p.dist *= zoom;
+    return s.shift(p, 0, k);
+  };
 
   async function go(i: number, first = false) {
     const s = stage;
@@ -170,7 +221,7 @@
         s.skyGainGoal = 1.4;
         s.focus = new Set(['WIDE_FIELD_INSTRUMENT']);
         s.hiddenParts = ['WFI.Body'];
-        const oblique = around(fp.clone().setY(fp.y + 0.2), 1.75, 0.55, 0.92);
+        const oblique = lift(s, around(fp.clone().setY(fp.y + 0.2), 1.75, 0.55, 0.92), 0.2);
         if (prev === 'sky' && !first) {
           // The signature hand-over: only the light that lands on the
           // detectors stays lit, then the outlines turn out to be the chips.
@@ -199,24 +250,26 @@
         s.hiddenParts = ['WFI.Body'];
         s.skyGainGoal = 0.35;
         const L = s.light!;
+        tags = stops.map((st) => ({ text: st.label, at: L.stopPoints[st.k].clone(), lit: false }));
         if (prev === 'focal' && !first) {
-          // Back out along the beam: detectors, wheel, aft optics, through the
-          // primary, past the secondary, out of the aperture.
-          s.lightGoal = { progress: L.length, opacity: 1, cgi: false };
+          // The signature move's second half: back out along the beam, the
+          // trace growing from the detectors just ahead of the camera, past
+          // the wheel, the aft optics, through the primary, up to the
+          // secondary, until the whole telescope is in view.
           const pts = L.stopPoints;
-          await s.fly([
+          const flight = s.fly([
             around(pts[8].clone(), 0.9, 0.35, 0.55),
             around(pts[6].clone(), 1.5, 0.7, 1.05),
             around(pts[3].clone().setY(pts[3].y + 0.3), 3.0, 0.8, 0.95),
             around(pts[2].clone().setY(pts[2].y - 1.2), 6.0, 0.7, 1.15),
             s.shot('optics'),
-          ], reducedMotion ? 0 : 7.5);
+          ], reducedMotion ? 0 : 9);
+          traceLight(token, true);
+          await flight;
         } else {
           await s.fly([s.shot('optics')], first ? 0 : 2.4);
+          if (alive()) traceLight(token, false);
         }
-        if (!alive()) return;
-        tags = L.stops.map((st, k) => ({ text: st.label, at: L.stopPoints[k].clone() }));
-        playLight(token);
         break;
       }
       case 'coronagraph': {
@@ -231,6 +284,7 @@
         const cgiMeshes = [...(m.bySubsystem.get('TEL.TertiaryCollimatorAssembly') ?? []), ...(m.bySubsystem.get('CORONAGRAPH_INSTRUMENT') ?? [])];
         const shot = s.shotOf(cgiMeshes, around(new THREE.Vector3(), 1, -1.15, 1.2));
         shot.dist *= 1.35;
+        lift(s, shot, 0.22);
         await s.fly([shot], first ? 0 : 2.6);
         if (alive()) tags = s.light!.cgiStops.map((st, k) => ({ text: st.label, at: s.light!.cgiStopPoints[k].clone() }));
         break;
@@ -239,7 +293,7 @@
         skyOn = false;
         // Fold up during the flight, so it arrives in its launch configuration.
         setDeploy(0);
-        await s.fly([s.shot('deploy')], first ? 0 : 2.4);
+        await s.fly([lift(s, s.shot('deploy'), 0.2, 1.1)], first ? 0 : 2.4);
         if (!alive()) return;
         await wait(reducedMotion ? 0 : 1800);
         if (alive()) playDeploy(token);
@@ -279,33 +333,53 @@
   function next() { if (ci < CHAPTERS.length - 1) go(ci + 1); }
   function prev() { if (ci > 0) go(ci - 1); }
 
-  /** Reveal the beam from the aperture to the focal plane, stop by stop. */
-  function playLight(token: number) {
+  /**
+   * Stops traced against the camera's eased progress when the trace rides the
+   * flight: the camera passes the wheel, fold mirror 2, the primary's centre
+   * and the secondary at a fifth, two fifths, three fifths and four fifths of
+   * the way, and the trace runs just ahead of it.
+   */
+  const TRACE_KNOTS: [number, number][] = [[0, 0], [0.2, 1.3], [0.4, 3.3], [0.6, 6.2], [0.8, 7.4], [1, 9]];
+  function interp(knots: [number, number][], e: number) {
+    for (let i = 1; i < knots.length; i++) {
+      if (e <= knots[i][0]) {
+        const a = knots[i - 1], b = knots[i];
+        return a[1] + ((b[1] - a[1]) * (e - a[0])) / (b[0] - a[0]);
+      }
+    }
+    return knots[knots.length - 1][1];
+  }
+
+  /** Trace the beam from the detectors back out to the aperture, stop by stop. */
+  function traceLight(token: number, withFlight: boolean) {
     const s = stage;
-    if (!s?.light) return;
+    if (!s?.light || !stops.length) return;
+    cancelAnimationFrame(lightRaf);
     const L = s.light;
-    const dur = reducedMotion ? 0.01 : 10.5;
+    const n = stops.length - 1;
+    const dur = reducedMotion ? 0.01 : 8;
     const t0 = performance.now();
     s.lightGoal = { progress: 0, opacity: 1, cgi: false };
     const step = () => {
       if (token !== goToken) return;
-      const t = Math.min(1, (performance.now() - t0) / 1000 / dur);
-      const p = t * L.length;
-      s.lightGoal.progress = p;
-      let k = -1;
-      for (let i = 0; i < L.stops.length; i++) if (p >= L.stops[i].s - 0.001) k = i;
+      const x = withFlight
+        ? (s.flying ? Math.min(n, interp(TRACE_KNOTS, s.flightEase)) : n)
+        : Math.min(1, (performance.now() - t0) / 1000 / dur) * n;
+      const i = Math.min(n - 1, Math.floor(x)), u = x - i;
+      s.lightGoal.progress = x >= n ? L.length : stops[i].back + (stops[i + 1].back - stops[i].back) * u;
+      const k = Math.floor(x + 1e-6);
       if (k !== stopIndex) {
         stopIndex = k;
-        // Only the photon's current stop is labelled in 3D; the aft-optics
-        // stops sit centimetres apart and would pile up. The list has them all.
-        tags = tags.map((g, i) => ({ ...g, lit: i === k }));
+        // Only the trace's current stop is labelled in 3D; the aft-optics
+        // stops sit centimetres apart. The list has them all.
+        tags = tags.map((g, j) => ({ ...g, lit: j === k }));
       }
-      if (t < 1) lightRaf = requestAnimationFrame(step);
+      if (x < n) lightRaf = requestAnimationFrame(step);
     };
     lightRaf = requestAnimationFrame(step);
   }
 
-  function replayLight() { if (stage) playLight(goToken); }
+  function replayLight() { if (stage) traceLight(goToken, false); }
 
   /** Step 0 is the launch configuration; each later step opens one mechanism. */
   function setDeploy(k: number) {
@@ -335,6 +409,14 @@
       else deployPlaying = false;
     };
     stepOnce(1);
+  }
+
+  /** A picked step holds: it cancels the autoplay, even one still waiting to start. */
+  function pickDeploy(k: number) {
+    ++goToken;
+    clearTimeout(deployTimer);
+    deployPlaying = false;
+    setDeploy(k);
   }
 
   function replayDeploy() {
@@ -417,16 +499,83 @@
 
   /* ------------------------------------------------------------- per frame -- */
 
+  type Box = { x: number; y: number; w: number; h: number };
+  const hits = (a: Box, b: Box, pad: number) =>
+    a.x < b.x + b.w + pad && b.x < a.x + a.w + pad && a.y < b.y + b.h + pad && b.y < a.y + a.h + pad;
+
+  /** Screen furniture the labels keep clear of, re-read a few times a second. */
+  let blocks: Box[] = [];
+  let blocksAt = 0;
+  function readBlocks() {
+    if (!host) return;
+    const o = host.getBoundingClientRect();
+    blocks = [mastEl, topEl, copyEl, railEl, inspectorEl].flatMap((el) => {
+      if (!el) return [];
+      const r = el.getBoundingClientRect();
+      return r.width && r.height ? [{ x: r.left - o.left, y: r.top - o.top, w: r.width, h: r.height }] : [];
+    });
+    if (copyEl) copyMore = copyEl.scrollHeight - copyEl.scrollTop - copyEl.clientHeight > 4;
+  }
+
+  /** Measured chip sizes and each label's last slot, kept out of Svelte's reach. */
+  const chipSize = new Map<string, { w: number; h: number; slot: number }>();
+  const GAP = 14;
+  const SLOTS = 18;
+
+  /**
+   * Slot 0 is right of the part, 1 left of it, then rows above and below on
+   * either side. A label keeps its last slot while that stays clear, so
+   * labels don't hop as the camera moves.
+   */
+  function slotBox(i: number, ax: number, ay: number, w: number, h: number): Box {
+    const ring = Math.floor(i / 2);
+    const dy = (ring % 2 === 1 ? -1 : 1) * Math.ceil(ring / 2) * (h + 6);
+    return { x: i % 2 === 0 ? ax + GAP : ax - GAP - w, y: ay - h / 2 + dy, w, h };
+  }
+
   const scratch = { x: 0, y: 0, z: 0 };
   function frame() {
     const s = stage;
-    if (!s) return;
+    if (!s || !host) return;
+    const now = performance.now();
+    if (now - blocksAt > 250) { blocksAt = now; readBlocks(); }
+    if (!tags.length) return;
+    const W = host.clientWidth, H = host.clientHeight;
+    const placed: Box[] = [];
+    const clear = (b: Box) =>
+      b.x >= 8 && b.y >= 8 && b.x + b.w <= W - 8 && b.y + b.h <= H - 8
+      && !blocks.some((k) => hits(b, k, 6)) && !placed.some((k) => hits(b, k, 4));
     for (const t of tags) {
-      if (!t.el) continue;
+      const el = t.el;
+      if (!el) continue;
+      if (t.lit === false) { el.style.opacity = '0'; continue; }
       s.project(t.at, scratch);
-      const off = scratch.z > 1 || scratch.x < -40 || scratch.y < -40 || scratch.x > (host?.clientWidth ?? 0) + 40;
-      t.el.style.transform = `translate3d(${scratch.x}px, ${scratch.y}px, 0)`;
-      t.el.style.opacity = off ? '0' : '';
+      const ax = scratch.x, ay = scratch.y;
+      // A part behind the camera, off screen or under the copy is not labelled.
+      const hidden = scratch.z > 1 || ax < 0 || ay < 0 || ax > W || ay > H
+        || blocks.some((k) => ax > k.x && ax < k.x + k.w && ay > k.y && ay < k.y + k.h);
+      const chip = el.children[2] as HTMLElement, lead = el.children[1] as HTMLElement;
+      let size = chipSize.get(t.text);
+      if (!size) chipSize.set(t.text, (size = { w: chip.offsetWidth, h: chip.offsetHeight, slot: 0 }));
+      let box: Box | null = null;
+      if (!hidden) {
+        const prefer = slotBox(size.slot, ax, ay, size.w, size.h);
+        if (clear(prefer)) box = prefer;
+        else for (let i = 0; i < SLOTS && !box; i++) {
+          const b = slotBox(i, ax, ay, size.w, size.h);
+          if (clear(b)) { box = b; size.slot = i; }
+        }
+      }
+      if (!box) { el.style.opacity = '0'; continue; }
+      placed.push(box);
+      const bx = box.x - ax, by = box.y - ay;
+      // A hairline from the part to the nearest edge of its label.
+      const nx = Math.max(bx, Math.min(0, bx + box.w)), ny = Math.max(by, Math.min(0, by + box.h));
+      el.style.opacity = '1';
+      el.style.transform = `translate3d(${ax}px, ${ay}px, 0)`;
+      chip.style.transform = `translate3d(${bx}px, ${by}px, 0)`;
+      lead.style.width = `${Math.hypot(nx, ny)}px`;
+      lead.style.transform = `rotate(${Math.atan2(ny, nx)}rad)`;
     }
   }
 
@@ -451,6 +600,8 @@
     EST: 'Estimated; not yet grounded in a source',
   };
   const TAGS: Tag[] = ['PUB', 'DER', 'EST'];
+  /** Where a temperature sits on the ladder's 20 °C to −190 °C scale, in percent. */
+  const coldness = (c: number) => Math.max(0, Math.min(100, ((20 - c) / 210) * 100));
   /** Subsystems hidden inside the barrel or the instrument bay. */
   const INSIDE = new Set([
     'TEL.PrimaryMirrorAssembly', 'TEL.SecondaryMirrorAssembly', 'TEL.AftOpticsModule',
@@ -461,7 +612,18 @@
 
 <svelte:window onkeydown={onKey} />
 
-<section class="rx" aria-label="Nancy Grace Roman Space Telescope explorer">
+<!-- One stroke weight for every icon. -->
+{#snippet icon(name: 'next' | 'prev' | 'close')}
+  <svg class="ic" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square">
+    {#if name === 'next'}<path d="M2.5 8h10M9 4.5 12.5 8 9 11.5" />
+    {:else if name === 'prev'}<path d="M13.5 8h-10M7 4.5 3.5 8 7 11.5" />
+    {:else}<path d="M4 4l8 8M12 4l-8 8" />{/if}
+  </svg>
+{/snippet}
+
+{#snippet prov(t: Tag)}<abbr class="t {t}" title={TAG_NAME[t]}>{t}</abbr>{/snippet}
+
+<section class="rx" aria-label="Nancy Grace Roman Space Telescope explorer" style:--dock="{railH}px">
   <div class="stage" use:mount bind:this={host}></div>
 
   <!-- The opening sky and its detector outlines, drawn over the same pose the 3D camera holds. -->
@@ -482,24 +644,27 @@
       {/if}
     </svg>
     {#if hubble}
-      <div class="hst-label" class:below={hubble.below}
-        style:left="{hubble.below ? hubble.x + hubble.w : hubble.x - 10}px"
-        style:top="{hubble.below ? hubble.y + hubble.h + 8 : hubble.y + hubble.h / 2}px">Hubble’s infrared camera, same scale</div>
+      <div class="cap hst-label" bind:this={hstEl} class:placed={!!hstPos}
+        style:left="{hstPos?.x ?? 0}px" style:top="{hstPos?.y ?? 0}px">Hubble’s infrared camera, same scale</div>
+      <div class="cap legend" bind:this={legendEl} class:placed={!!legendPos}
+        style:left="{legendPos?.x ?? 0}px" style:top="{legendPos?.y ?? 0}px">
+        <p>Roman Wide Field Instrument · 0.281 deg² {@render prov('PUB')}</p>
+        <p class="sim">Synthetic star field, not a Roman image</p>
+      </div>
     {/if}
-    <p class="synthetic long">Synthetic star field toward the Galactic bulge — not a Roman image.</p>
   </div>
 
-  <!-- 3D-anchored labels -->
+  <!-- 3D-anchored labels: a pin on the part, a hairline, the label placed clear of the rest. -->
   <div class="tags" aria-hidden="true">
     {#each tags as t (t.text)}
-      <div class="tag" class:lit={t.lit !== false} class:quiet={t.lit === false} bind:this={t.el}><i></i><span>{t.text}</span></div>
+      <div class="tag" class:lit={t.lit !== false} bind:this={t.el}><i></i><b></b><span>{t.text}</span></div>
     {/each}
     {#if hover}
       <div class="hover" style:transform="translate3d({hover.x}px, {hover.y}px, 0)"><span>{hover.text}</span></div>
     {/if}
   </div>
 
-  <header class="mast">
+  <header class="mast" bind:this={mastEl}>
     <h1>Nancy Grace Roman<br />Space Telescope</h1>
     <p class="status">
       <span class="dot" aria-hidden="true"></span>
@@ -508,14 +673,16 @@
     </p>
   </header>
 
-  <div class="top-right">
+  <div class="top-right" bind:this={topEl}>
     <div class="prov" title="Dimensions in the model, by source">
       <div class="bar" aria-hidden="true">
         {#each TAGS as t}<span class="seg {t}" style:flex={PROVENANCE[t]}></span>{/each}
       </div>
       <span>{grounded} of {PROVENANCE_TOTAL} dimensions published or derived</span>
     </div>
-    <button class="exit" onclick={enterTracker}><span class="long">Enter the{' '}</span>tracker <span aria-hidden="true">→</span></button>
+    {#if ch.id !== 'explore'}
+      <button class="exit" onclick={enterTracker}><span class="long">Enter the{' '}</span>tracker {@render icon('next')}</button>
+    {/if}
   </div>
 
   {#if status !== 'ready'}
@@ -530,12 +697,12 @@
 
   <!-- Chapter copy -->
   {#key ci}
-    <article class="copy" class:explore={ch.id === 'explore'}>
+    <article class="copy" class:more={copyMore} bind:this={copyEl} onscroll={readBlocks}>
       <h2>{ch.title}</h2>
       {#each ch.body as para}<p>{para}</p>{/each}
 
       {#if ch.id === 'light'}
-        <ol class="stops">
+        <ol class="stops" aria-label="The light path, traced back from the detectors">
           {#each stops as st, k}
             <li class:done={k < stopIndex} class:now={k === stopIndex}>
               <b>{st.label}</b>
@@ -543,12 +710,15 @@
             </li>
           {/each}
         </ol>
-        <button class="ghost" onclick={replayLight}>Replay the light</button>
+        {#if stops[stopIndex]}
+          <p class="stop-now short" aria-live="polite"><b>{stops[stopIndex].label}.</b> {STOP_NOTES[stops[stopIndex].id]}</p>
+        {/if}
+        <button class="ghost" onclick={replayLight}>Trace it again</button>
       {:else if ch.id === 'deploy'}
         <ol class="events">
           {#each DEPLOYMENTS as d, k}
             <li class:done={k < deployStep} class:now={k === deployStep}>
-              <button onclick={() => { clearTimeout(deployTimer); deployPlaying = false; setDeploy(k); }}>
+              <button onclick={() => pickDeploy(k)}>
                 <time>{d.when}</time><span>{d.what}</span>
               </button>
             </li>
@@ -557,9 +727,27 @@
         <button class="ghost" onclick={replayDeploy} disabled={deployPlaying}>{deployPlaying ? 'Unfolding…' : 'Replay from launch'}</button>
       {/if}
 
-      {#if ch.stats}
-        <dl class="stats">
-          {#each ch.stats as st}<div><dt>{st.label}</dt><dd>{st.value}{#if st.sup}<sup>{st.sup}</sup>{/if}</dd></div>{/each}
+      {#if ch.figures?.form === 'hero'}
+        <div class="fig hero">
+          {#each ch.figures.items as f}
+            <p><span class="v">{f.value}{#if f.sup}<sup>{f.sup}</sup>{/if}</span><span class="l">{f.label} {@render prov(f.tag)}</span></p>
+          {/each}
+        </div>
+      {:else if ch.figures?.form === 'ladder'}
+        <div class="fig ladder">
+          <span class="axis" aria-hidden="true"><span>20 °C</span><span>−190 °C</span></span>
+          {#each ch.figures.items as f}
+            <span class="l">{f.label}</span>
+            <span class="track" aria-hidden="true"><i style:width="{coldness(f.celsius ?? 0)}%"></i></span>
+            <span class="v">{f.value}</span>
+            {@render prov(f.tag)}
+          {/each}
+        </div>
+      {:else if ch.figures?.form === 'ledger'}
+        <dl class="fig ledger">
+          {#each ch.figures.items as f}
+            <div><dt>{f.dir}</dt><dd><span class="v">{f.value}</span><span class="l">{f.label}</span>{@render prov(f.tag)}</dd></div>
+          {/each}
         </dl>
       {/if}
 
@@ -586,24 +774,24 @@
         {/if}
       {/if}
 
-      {#if ch.next}
-        <button class="next" onclick={next}>{ch.next} <span aria-hidden="true">→</span></button>
+      {#if ch.sources}
+        <p class="source">
+          <span>{ch.sources.length > 1 ? 'Sources' : 'Source'}:</span>
+          {#each ch.sources as so}<a href={so.href} target="_blank" rel="noreferrer">{so.label}</a>{/each}
+        </p>
       {/if}
-      {#if ch.id === 'sky'}<p class="source short">The star field is synthetic, not a Roman image.</p>{/if}
-      {#if ch.source}<p class="source">Source: <a href="https://{ch.source}" target="_blank" rel="noreferrer">{ch.source}</a></p>{/if}
     </article>
   {/key}
 
   <!-- Inspector -->
   {#if sel}
-    <aside class="inspector" aria-label="{sel.label} details">
+    <aside class="inspector" aria-label="{sel.label} details" bind:this={inspectorEl}>
       <div class="ins-head">
         <div>
-          <p class="group">{sel.group}</p>
           <h3>{selPart ? partLabel(selPart) : sel.label}</h3>
           {#if selPart}<p class="of">Part of the {sel.label.toLowerCase()}</p>{/if}
         </div>
-        <button class="x" onclick={clearSelection} aria-label="Close details">×</button>
+        <button class="x" onclick={clearSelection} aria-label="Close details">{@render icon('close')}</button>
       </div>
       <p class="blurb">{sel.blurb}</p>
       {#if sel.facts.length}
@@ -613,7 +801,7 @@
               <tr title={f.note}>
                 <th scope="row">{f.label}</th>
                 <td>{f.value}</td>
-                <td class="t {f.tag}" title={TAG_NAME[f.tag]}>{f.tag}</td>
+                <td class="tc">{@render prov(f.tag)}</td>
               </tr>
             {/each}
           </tbody>
@@ -627,15 +815,19 @@
     </aside>
   {/if}
 
-  <!-- Chapter rail -->
-  <nav class="rail" aria-label="Chapters">
-    <button class="arrow" onclick={prev} disabled={ci === 0} aria-label="Previous chapter">←</button>
+  <!-- Chapter rail; the chapter's forward action sits at its head. -->
+  <nav class="rail" aria-label="Chapters" bind:this={railEl} bind:clientHeight={railH}>
+    <button class="arrow" onclick={prev} disabled={ci === 0} aria-label="Previous chapter">{@render icon('prev')}</button>
     <ol>
       {#each CHAPTERS as c, k}
         <li><button class:on={k === ci} aria-current={k === ci ? 'step' : undefined} onclick={() => go(k)}>{c.nav}</button></li>
       {/each}
     </ol>
-    <button class="arrow" onclick={next} disabled={ci === CHAPTERS.length - 1} aria-label="Next chapter">→</button>
+    {#if ch.next}
+      <button class="cta" onclick={next}>{ch.next} {@render icon('next')}</button>
+    {:else}
+      <button class="cta" onclick={enterTracker}>Enter the tracker {@render icon('next')}</button>
+    {/if}
   </nav>
 </section>
 
@@ -670,8 +862,18 @@
   .short { display: none; }
   .rx button { font: inherit; color: inherit; }
   .rx :focus-visible { outline: 1px solid var(--live); outline-offset: 3px; }
+  .ic { flex: none; display: block; }
 
   .stage { position: absolute; inset: 0; }
+
+  /* --- provenance tags ----------------------------------------------------- */
+  .t {
+    font-size: 10px; letter-spacing: 0.06em; font-weight: 500; text-decoration: none;
+    cursor: help; vertical-align: 0.1em; margin-left: 2px;
+  }
+  .t.PUB { color: var(--live); }
+  .t.DER { color: var(--ink-2); }
+  .t.EST { color: var(--est); }
 
   /* --- sky ----------------------------------------------------------------- */
   .sky {
@@ -699,28 +901,38 @@
   }
   .foot .hst { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 2; }
   @keyframes trace { from { opacity: 0; stroke-opacity: 0; } to { opacity: 1; } }
-  .hst-label.below { transform: translateX(-100%); }
-  .hst-label {
-    position: absolute; transform: translate(-100%, -50%); white-space: nowrap;
-    font-size: 11px; color: var(--ink-2); letter-spacing: 0.02em;
+  /* Figure captions sit on a scrim so they read over any star. */
+  .cap {
+    position: absolute; z-index: 1; visibility: hidden; white-space: nowrap;
+    font-size: 11px; color: var(--ink-2);
+    padding: 3px 7px; background: rgba(0, 0, 0, 0.62);
   }
-  .synthetic {
-    position: absolute; right: 24px; bottom: 76px; margin: 0;
-    font-size: 11px; color: var(--ink-3);
-  }
+  .cap.placed { visibility: visible; animation: arrive 0.9s 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .legend { display: grid; gap: 1px; border-left: 1px solid var(--live); }
+  .legend p { margin: 0; color: var(--ink); }
+  .legend .sim { color: var(--ink-2); }
 
   /* --- labels -------------------------------------------------------------- */
   .tags { position: absolute; inset: 0; pointer-events: none; }
   .tag {
-    position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 8px;
+    position: absolute; left: 0; top: 0; opacity: 0;
     font-size: 11px; white-space: nowrap; color: var(--ink-3);
-    transition: opacity 0.4s, color 0.4s;
+    transition: opacity 0.35s, color 0.35s;
     will-change: transform;
   }
-  .tag i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-left: -2.5px; flex: none; }
-  .tag span { padding: 2px 6px; background: rgba(0, 0, 0, 0.55); border: 1px solid var(--rule); }
+  .tag i {
+    position: absolute; left: -2.5px; top: -2.5px; width: 5px; height: 5px; border-radius: 50%;
+    background: currentColor;
+  }
+  .tag b {
+    position: absolute; left: 0; top: 0; height: 1px; width: 0;
+    background: currentColor; opacity: 0.5; transform-origin: 0 50%;
+  }
+  .tag span {
+    position: absolute; left: 0; top: 0; padding: 2px 6px;
+    background: rgba(0, 0, 0, 0.62); border: 1px solid var(--rule);
+  }
   .tag.lit { color: var(--ink); }
-  .tag.quiet { opacity: 0 !important; }
   .hover {
     position: absolute; left: 0; top: 0; pointer-events: none;
     font-size: 11px; white-space: nowrap;
@@ -747,6 +959,7 @@
   .seg.DER { background: var(--ink-2); }
   .seg.EST { background: var(--est); opacity: 0.8; }
   .exit {
+    display: inline-flex; align-items: center; gap: 8px;
     background: none; border: 1px solid var(--rule); padding: 9px 14px; cursor: pointer;
     font-size: 12px; letter-spacing: 0.01em; transition: border-color 0.2s, color 0.2s;
   }
@@ -761,36 +974,64 @@
 
   /* --- chapter copy -------------------------------------------------------- */
   .copy {
-    position: absolute; left: 32px; bottom: 92px; width: min(440px, calc(100vw - 64px));
-    max-height: calc(100vh - 220px); overflow: auto; scrollbar-width: thin;
+    position: absolute; left: 32px; bottom: calc(var(--dock) + 28px); width: min(440px, calc(100vw - 64px));
+    max-height: calc(100% - var(--dock) - 190px); overflow: auto; scrollbar-width: thin;
+    scrollbar-color: var(--rule) transparent;
     animation: arrive 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
+  /* More below: fade the last lines so the scroll is visible, not hidden. */
+  .copy.more { mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent); }
   @keyframes arrive { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } }
   .copy h2 {
     margin: 0 0 14px; font-weight: 600; font-size: clamp(28px, 3.3vw, 46px);
     line-height: 1.02; letter-spacing: -0.035em; text-wrap: balance;
   }
   .copy p { margin: 0 0 12px; color: var(--ink-2); font-size: 14.5px; max-width: 46ch; text-wrap: pretty; }
-  .stats { display: flex; gap: 28px; margin: 20px 0 6px; flex-wrap: wrap; }
-  .stats div { display: grid; gap: 2px; }
-  .stats dd { margin: 0; order: -1; font-size: 24px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-  .stats dt { font-size: 11px; color: var(--ink-3); }
-  .stats sup { font-size: 0.55em; margin-left: 1px; vertical-align: 0.85em; line-height: 0; }
 
-  .next {
-    margin-top: 18px; display: inline-flex; gap: 10px; align-items: center; cursor: pointer;
-    background: var(--live); color: #000; border: none; padding: 11px 18px;
-    font-weight: 600; font-size: 13px; letter-spacing: 0.01em;
-    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s;
+  /* Figures: one number when it is the claim, a scale, or an in/out ledger. */
+  .fig { margin: 18px 0 4px; }
+  .hero p { display: flex; align-items: baseline; gap: 14px; margin: 0; }
+  .hero .v { font-size: 34px; font-weight: 500; letter-spacing: -0.03em; color: var(--ink); line-height: 1; }
+  .hero .l { font-size: 12px; color: var(--ink-2); max-width: 30ch; }
+  .fig sup { font-size: 0.55em; margin-left: 1px; vertical-align: 0.85em; line-height: 0; }
+
+  .ladder {
+    display: grid; grid-template-columns: max-content 1fr max-content max-content;
+    align-items: center; gap: 7px 12px; font-size: 12.5px; max-width: 400px;
   }
-  .next:hover { transform: translateX(3px); box-shadow: 0 6px 24px -8px var(--live); }
+  .ladder .axis {
+    grid-column: 2; display: flex; justify-content: space-between;
+    font-size: 10px; color: var(--ink-3); margin-bottom: -3px;
+  }
+  .ladder .l { grid-column: 1; color: var(--ink-2); }
+  .ladder .track { position: relative; height: 1px; background: var(--rule); }
+  .ladder .track i {
+    position: absolute; left: 0; top: 0; height: 1px;
+    background: linear-gradient(90deg, rgba(242, 241, 236, 0.2), var(--ink));
+  }
+  .ladder .track i::after {
+    content: ''; position: absolute; right: -1px; top: -4px; width: 2px; height: 9px; background: var(--live);
+  }
+  .ladder .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+  .ledger { display: grid; gap: 8px; }
+  .ledger div { display: grid; grid-template-columns: 3.2em 1fr; align-items: baseline; border-top: 1px solid var(--rule); padding-top: 8px; }
+  .ledger dt { font-size: 11px; color: var(--ink-3); }
+  .ledger dd { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+  .ledger .v { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .ledger .l { font-size: 12px; color: var(--ink-2); }
+
   .ghost {
     background: none; border: 1px solid var(--rule); padding: 7px 12px; cursor: pointer;
     font-size: 12px; margin-top: 10px; transition: border-color 0.2s;
   }
   .ghost:hover:not(:disabled) { border-color: var(--ink); }
   .ghost:disabled { color: var(--ink-3); cursor: default; }
-  .source { font-size: 11px !important; color: var(--ink-3) !important; margin-top: 14px !important; }
+  /* A URL has no break points: each link wraps as one unit. */
+  .source {
+    display: flex; flex-wrap: wrap; gap: 0 12px;
+    font-size: 11px !important; color: var(--ink-3) !important; margin-top: 16px !important;
+  }
   .source a { color: var(--ink-2); text-underline-offset: 3px; text-decoration-color: var(--rule); }
   .source a:hover { color: var(--ink); }
 
@@ -806,6 +1047,8 @@
   .stops li.now { color: var(--live); }
   .stops li b { font-weight: 500; }
   .stops li span { display: block; color: var(--ink); font-size: 12.5px; margin-top: 2px; }
+  .stop-now { font-size: 13px !important; color: var(--ink) !important; margin: 10px 0 0 !important; min-height: 3em; }
+  .stop-now b { color: var(--live); font-weight: 500; }
 
   .events li button {
     display: grid; gap: 2px; width: 100%; text-align: left; background: none; border: none;
@@ -818,7 +1061,6 @@
   .events li:not(.now):not(.done) time { color: var(--ink-3); }
   .events span { font-size: 12.5px; }
 
-  .copy.explore { bottom: 92px; }
   .tools { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 14px; font-size: 12px; }
   .tools .ghost { margin: 0; }
   .slider { display: flex; align-items: center; gap: 10px; }
@@ -845,33 +1087,32 @@
 
   /* --- inspector ----------------------------------------------------------- */
   .inspector {
-    position: absolute; right: 28px; top: 96px; width: 330px; max-height: calc(100vh - 200px); overflow: auto;
+    position: absolute; right: 28px; top: 96px; width: 330px; max-height: calc(100% - var(--dock) - 136px); overflow: auto;
     background: var(--panel); border: 1px solid var(--rule); padding: 16px 18px 14px;
     backdrop-filter: blur(12px); scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
     animation: arrive 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .ins-head { display: flex; justify-content: space-between; gap: 12px; }
-  .group { margin: 0; font-size: 11px; color: var(--live); }
-  .inspector h3 { margin: 4px 0 0; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+  .inspector h3 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
   .of { margin: 4px 0 0; font-size: 11.5px; color: var(--ink-3); }
   .blurb { margin: 12px 0 10px; font-size: 12.5px; color: var(--ink-2); }
   .inspector table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .inspector th { text-align: left; font-weight: 400; color: var(--ink-3); padding: 4px 0; }
   .inspector td { text-align: right; padding: 4px 0 4px 8px; font-variant-numeric: tabular-nums; }
+  .inspector td.tc { width: 34px; }
   .inspector tr + tr th, .inspector tr + tr td { border-top: 1px solid rgba(242, 241, 236, 0.06); }
-  .t { font-size: 10px; letter-spacing: 0.06em; width: 34px; cursor: help; }
-  .t.PUB { color: var(--live); }
-  .t.DER { color: var(--ink-2); }
-  .t.EST { color: var(--est); }
   .conflict { font-size: 12px; color: var(--ink-2); margin: 12px 0 0; padding: 8px 10px; background: rgba(255, 174, 74, 0.07); }
   .conflict b { color: var(--est); font-weight: 600; }
   .ins-actions { display: flex; gap: 8px; }
-  .x { background: none; border: none; cursor: pointer; font-size: 18px; line-height: 1; color: var(--ink-3); padding: 0 2px; align-self: flex-start; }
+  .x {
+    background: none; border: none; cursor: pointer; color: var(--ink-3);
+    padding: 4px; margin: -4px -4px 0 0; align-self: flex-start;
+  }
   .x:hover { color: var(--ink); }
 
   /* --- rail ---------------------------------------------------------------- */
   .rail {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 64px;
+    position: absolute; left: 0; right: 0; bottom: 0; min-height: 64px;
     display: flex; align-items: center; gap: 4px; padding: 0 20px;
     border-top: 1px solid var(--rule);
     background: linear-gradient(to top, rgba(0, 0, 0, 0.86), rgba(0, 0, 0, 0.5));
@@ -890,15 +1131,25 @@
   .rail li button.on { color: var(--ink); }
   .rail li button.on::after { transform: scaleX(1); }
   .arrow {
+    display: grid; place-items: center;
     background: none; border: 1px solid var(--rule); width: 36px; height: 36px; cursor: pointer;
-    font-size: 14px; flex: none; transition: border-color 0.2s;
+    flex: none; transition: border-color 0.2s;
   }
   .arrow:hover:not(:disabled) { border-color: var(--ink); }
   .arrow:disabled { opacity: 0.3; cursor: default; }
+  .cta {
+    flex: none; display: inline-flex; gap: 12px; align-items: center; cursor: pointer; white-space: nowrap;
+    background: var(--live); color: #000 !important; border: none; padding: 11px 16px 11px 18px;
+    font-weight: 600; font-size: 13px; letter-spacing: 0.01em;
+    transition: box-shadow 0.25s;
+  }
+  .cta .ic { transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+  .cta:hover { box-shadow: 0 6px 24px -8px var(--live); }
+  .cta:hover .ic { transform: translateX(3px); }
 
   @media (prefers-reduced-motion: reduce) {
-    .copy, .index, .inspector, .foot > polygon { animation: none; }
-    .sky, .rail li button::after, .next { transition: none; }
+    .copy, .index, .inspector, .foot > polygon, .cap.placed { animation: none; }
+    .sky, .rail li button::after, .cta .ic { transition: none; }
     .dot, .pulse { animation: none; }
   }
 
@@ -909,26 +1160,47 @@
     .status { font-size: 10.5px; margin-top: 6px; }
     .long { display: none; }
     .short { display: revert; }
-    .copy .next { position: sticky; bottom: 0; }
-    .copy .source { margin-bottom: 4px !important; }
     .top-right { right: 14px; top: 14px; gap: 10px; }
     .prov { display: none; }
-    .exit { padding: 7px 10px; font-size: 11px; }
+    .exit { padding: 7px 10px; font-size: 11px; gap: 6px; }
+    .cap { font-size: 10.5px; }
+
+    /* The forward action gets its own opaque row above the chapters. */
+    .rail {
+      display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'cta cta' 'prev list';
+      gap: 6px 4px; padding: 8px 8px 2px; min-height: 0; background: #000;
+    }
+    .rail .cta { grid-area: cta; justify-content: space-between; padding: 12px 16px; }
+    .rail .arrow { grid-area: prev; width: 32px; height: 32px; }
+    .rail ol { grid-area: list; justify-content: flex-start; }
+    .rail li button { padding: 10px; font-size: 12px; }
+    .rail li button::after { left: 10px; right: 10px; bottom: 4px; }
+
     .copy {
-      left: 16px; right: 16px; width: auto; bottom: 66px; max-height: 44vh;
-      background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 60%, rgba(0, 0, 0, 0));
-      padding-top: 28px;
+      left: 16px; right: 16px; width: auto; bottom: var(--dock); max-height: 50%;
+      background: linear-gradient(to top, #000 calc(100% - 28px), rgba(0, 0, 0, 0));
+      padding-top: 28px; padding-bottom: 10px;
     }
     .copy h2 { font-size: 26px; margin-bottom: 8px; }
-    .copy p { font-size: 13.5px; }
-    .stats { gap: 18px; margin-top: 12px; }
-    .stats dd { font-size: 19px; }
-    .synthetic { left: 16px; right: auto; top: 86px; bottom: auto; font-size: 10px; }
-    .rail { height: 56px; padding: 0 8px; }
-    .rail ol { justify-content: flex-start; }
-    .rail li button { padding: 10px; font-size: 12px; }
-    .arrow { width: 32px; height: 32px; }
-    .inspector { left: 12px; right: 12px; top: auto; bottom: 64px; width: auto; max-height: 52vh; }
+    .copy p { font-size: 13.5px; margin-bottom: 10px; }
+    .fig { margin-top: 12px; }
+    .hero .v { font-size: 28px; }
+    .ledger .v { font-size: 18px; }
+    .copy .source { margin-top: 10px !important; margin-bottom: 0 !important; }
+
+    /* The light path: a tick per stop, the current one spelled out below. */
+    .stops { display: flex; gap: 3px; margin: 12px 0 0; }
+    .stops li { flex: 1; height: 2px; padding: 0; background: var(--rule); font-size: 0; transition: background 0.3s; }
+    .stops li::before, .stops li b, .stops li span { display: none; }
+    .stops li.done { background: var(--ink-2); }
+    .stops li.now { background: var(--live); }
+
+    /* The timeline: every time, only the current step's words. */
+    .events { margin-top: 10px; }
+    .events li button { padding: 4px 0 4px 12px; }
+    .events li:not(.now) span { display: none; }
+
+    .inspector { left: 12px; right: 12px; top: auto; bottom: calc(var(--dock) + 8px); width: auto; max-height: 52%; }
     .index { columns: 1; }
   }
 </style>

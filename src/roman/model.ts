@@ -125,6 +125,10 @@ function author(src: THREE.Material, foil: THREE.Texture, sky: RomanModel['sky']
   const crinkle = (k: number) => ({ normalMap: foil, normalScale: new THREE.Vector2(k, k) });
   switch (name) {
     // Silver-grey, low-sheen crinkled MLI: the barrel, bus and instruments.
+    // Roman's flight blankets are silver, not the gold of the Blender source:
+    // nasa.gov/wp-content/uploads/2025/02/dac-group-photo.jpg (barrel, visor),
+    // nasa.gov/missions/roman-space-telescope/nasa-installs-key-sunblock-shield-on-roman-space-telescope/
+    // (bus, lower sun shade). Recorded in roman_dims.py CORRECTIONS.
     case 'MLI_Silver':
     case 'MLI_Gold':
       return std({ color: 0xc9cbce, metalness: 0.85, roughness: 0.4, ...crinkle(0.32) });

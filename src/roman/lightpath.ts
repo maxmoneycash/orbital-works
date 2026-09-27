@@ -21,7 +21,8 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { num } from './dims';
 import { boundsOf, type RomanModel } from './model';
 
-export interface Stop { id: string; label: string; s: number }
+/** `s` is metres from the aperture along the reference ray; `back`, metres from its focal-plane end. */
+export interface Stop { id: string; label: string; s: number; back: number }
 
 const centre = (m: THREE.Object3D | undefined, fallback: THREE.Vector3) =>
   m ? boundsOf([m]).getCenter(new THREE.Vector3()) : fallback.clone();
@@ -101,6 +102,15 @@ export class LightPath {
         line.frustumCulled = false;
         into.add(line);
       }
+      // The trail is revealed from the detectors back out, so its dash
+      // distances count from this ray's own focal-plane end: every ray's
+      // front then sits at the same stop. The photons keep the forward
+      // distances and stream the way the light actually travels.
+      const d = (geo.attributes.instanceDistanceStart as THREE.InterleavedBufferAttribute).data;
+      const arr = d.array as Float32Array;
+      const total = arr[arr.length - 1];
+      for (let i = 0; i < arr.length; i++) arr[i] = total - arr[i];
+      d.needsUpdate = true;
       let s = 0;
       const cum = [0];
       for (let i = 1; i < pts.length; i++) cum.push((s += pts[i].distanceTo(pts[i - 1])));
@@ -124,7 +134,7 @@ export class LightPath {
     const names = ['Aperture', 'Primary mirror', 'Secondary mirror', 'Through the primary', 'Fold mirror 1',
       'Intermediate focus', 'Fold mirror 2', 'Tertiary mirror', 'Element wheel', 'Focal plane'];
     const ids = ['aperture', 'pm', 'sm', 'hole', 'fm1', 'if', 'fm2', 'tm', 'wheel', 'fp'];
-    ref.forEach((s, i) => this.stops.push({ id: ids[i], label: names[i], s }));
+    ref.forEach((s, i) => this.stops.push({ id: ids[i], label: names[i], s, back: this.length - s }));
 
     for (let k = 0; k < 6; k++) {
       const th = (k / 6) * Math.PI * 2;
@@ -133,7 +143,8 @@ export class LightPath {
       const cum = addRay(pts, this.cgiTrail, this.cgiPulse, this.cgiGroup);
       if (k === 0) {
         const cn = ['Pick-off mirror', 'Collimator M3', 'Collimator M4', 'Collimator M5', 'Tip/tilt flat', 'Coronagraph'];
-        cum.slice(4).forEach((s, i) => this.cgiStops.push({ id: `cgi${i}`, label: cn[i], s }));
+        const end = cum[cum.length - 1];
+        cum.slice(4).forEach((s, i) => this.cgiStops.push({ id: `cgi${i}`, label: cn[i], s, back: end - s }));
         this.cgiStopPoints.push(...pts.slice(4).map((p) => p.clone()));
       }
     }
@@ -145,26 +156,25 @@ export class LightPath {
     for (const m of [this.trail, this.pulse, this.cgiTrail, this.cgiPulse]) m.resolution.set(w, h);
   }
 
-  /** `progress` in metres along the path; `opacity` fades the whole path. */
+  /**
+   * `progress`: metres of path revealed, counted back from the focal plane;
+   * `length` or more shows every ray whole. `opacity` fades the whole path.
+   */
   set(progress: number, cgi: boolean, opacity: number) {
     this.group.visible = opacity > 0.001;
     this.cgiGroup.visible = cgi;
-    this.trail.dashSize = this.cgiTrail.dashSize = Math.max(0.0001, progress);
+    // Whole rays can be longer than the reference ray; don't clip their tops.
+    this.trail.dashSize = this.cgiTrail.dashSize = progress >= this.length - 1e-3 ? 1e4 : Math.max(0.0001, progress);
     this.trail.opacity = 0.34 * opacity;
     this.cgiTrail.opacity = 0.42 * opacity;
     this.pulse.opacity = this.cgiPulse.opacity = opacity;
   }
 
-  /**
-   * Photons. While the path is being revealed a single bright dash rides its
-   * front; once it is complete they stream along it continuously.
-   */
+  /** Photons stream along the path, aperture to detectors, once it is complete. */
   tick(dt: number, progress: number) {
     const complete = progress >= this.length - 0.02;
     const period = 2.6;
     this.pulseS = (this.pulseS + dt * 3.4) % period;
-    // While revealing, the trail's own leading edge is the front; photons
-    // stream only once the path is complete.
     for (const m of [this.pulse, this.cgiPulse]) {
       m.visible = complete;
       m.dashSize = 0.4;

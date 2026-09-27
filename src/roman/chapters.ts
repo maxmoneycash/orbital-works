@@ -6,17 +6,34 @@
  * scripts/roman/roman_dims.py and the research notes it cites. Mission status
  * is as of late September 2026.
  */
+import type { Tag } from './dims';
 
-export interface Stat { value: string; sup?: string; label: string }
+/** A number shown in a chapter, carrying where it came from like every other. */
+export interface Figure { value: string; sup?: string; label: string; tag: Tag; celsius?: number; dir?: string }
+
+/**
+ * Each chapter's numbers take the form their point needs: one figure when a
+ * single number is the claim, a temperature scale when the claim is how cold
+ * each tier runs, an in/out ledger when it is what flows through.
+ */
+export type Figures =
+  | { form: 'hero'; items: Figure[] }
+  | { form: 'ladder'; items: Figure[] }
+  | { form: 'ledger'; items: Figure[] };
+
+export interface Source { label: string; href: string }
+
 export interface Chapter {
   id: 'sky' | 'focal' | 'light' | 'coronagraph' | 'deploy' | 'thermal' | 'power' | 'explore';
   nav: string;
   title: string;
   body: string[];
-  stats?: Stat[];
+  figures?: Figures;
   next?: string;
-  source?: string;
+  sources?: Source[];
 }
+
+const src = (href: string, label = href.replace(/^https:\/\//, '')): Source => ({ label, href });
 
 export const CHAPTERS: Chapter[] = [
   {
@@ -25,13 +42,8 @@ export const CHAPTERS: Chapter[] = [
     body: [
       'Roman’s Wide Field Instrument takes in 0.28 square degrees of sky at a time. The eighteen outlines are its detectors, drawn to scale over a star field toward the centre of the Milky Way; the small square beside them is Hubble’s infrared camera.',
     ],
-    stats: [
-      { value: '≈200×', label: 'Hubble WFC3/IR field' },
-      { value: '300 MP', label: '18 detectors' },
-      { value: '0.11″', label: 'per pixel' },
-    ],
     next: 'Pull back',
-    source: 'roman.gsfc.nasa.gov/science/WFI_technical.html',
+    sources: [src('https://roman.gsfc.nasa.gov/science/WFI_technical.html')],
   },
   {
     id: 'focal', nav: 'The detectors',
@@ -41,16 +53,16 @@ export const CHAPTERS: Chapter[] = [
       'They sit in an arch because the telescope’s image is sharpest in a ring around its centre. Above them, an eleven-slot wheel turns filters, a grism or a prism into the beam.',
     ],
     next: 'Follow the light back out',
-    source: 'roman.gsfc.nasa.gov/interactive/parts/wfi',
+    sources: [src('https://roman.gsfc.nasa.gov/interactive/parts/wfi')],
   },
   {
     id: 'light', nav: 'The light path',
     title: 'Five reflections to the detectors',
     body: [
-      'Roman is a three-mirror anastigmat. Starlight strikes the 2.4 m primary, rises to the secondary, and drops back through the primary’s centre into the aft optics, where two flats fold it and the concave tertiary forms the image.',
+      'Roman is a three-mirror anastigmat: the 2.4 m primary sends starlight up to the secondary, which drops it back through the primary’s centre into the aft optics, where two flats fold it and the concave tertiary forms the image. Here it is traced back out, from the detectors to the sky.',
     ],
     next: 'The coronagraph',
-    source: 'ntrs.nasa.gov/citations/20250006671',
+    sources: [src('https://ntrs.nasa.gov/citations/20250006671')],
   },
   {
     id: 'coronagraph', nav: 'Coronagraph',
@@ -59,12 +71,9 @@ export const CHAPTERS: Chapter[] = [
       'A pick-off mirror takes part of the beam for the Coronagraph Instrument. Three curved mirrors collimate it and a tip/tilt flat steers it in.',
       'Inside, two deformable mirrors, each with more than 1,600 actuators, reshape the light to carve a dark hole in a star’s glare, deep enough to reveal planets ten million times fainter than it.',
     ],
-    stats: [
-      { value: '10', sup: '−7', label: 'contrast required' },
-      { value: '1,600+', label: 'actuators per deformable mirror' },
-    ],
+    figures: { form: 'hero', items: [{ value: '10', sup: '−7', label: 'planet-to-star contrast the coronagraph must reach', tag: 'PUB' }] },
     next: 'How it unfolded',
-    source: 'roman.gsfc.nasa.gov/interactive/parts/coronagraph',
+    sources: [src('https://roman.gsfc.nasa.gov/interactive/parts/coronagraph')],
   },
   {
     id: 'deploy', nav: 'Unfolding',
@@ -73,35 +82,43 @@ export const CHAPTERS: Chapter[] = [
       'Roman launched on a Falcon Heavy on 30 August 2026. It came off the rocket folded, and opened in four steps over two days.',
     ],
     next: 'Keeping cold',
-    source: 'science.nasa.gov/blogs/roman',
+    sources: [
+      src('https://www.nasa.gov/news-release/nasas-dark-universe-seeking-nancy-grace-roman-space-telescope-launches/', 'NASA launch release, 30 Aug'),
+      src('https://science.nasa.gov/blogs/roman/2026/09/01/nasa-roman-space-telescopes-antenna-visor-deployed/', 'Antenna and visor deployed, 1 Sep'),
+    ],
   },
   {
     id: 'thermal', nav: 'Staying cold',
     title: 'Always one side to the Sun',
     body: [
-      'Roman keeps its solar array between the Sun and the telescope. The array, the lower sun shade and the visor keep direct light off the optics, so the primary holds near −7 °C, the aft optics near −55 °C, and the detectors near −178 °C.',
+      'Roman keeps its solar array between the Sun and the telescope. The array, the lower sun shade and the visor keep direct light off the optics, so the mirrors, the aft optics and the detectors can each run colder than the last.',
     ],
-    stats: [
-      { value: '−7 °C', label: 'primary mirror' },
-      { value: '−55 °C', label: 'aft optics' },
-      { value: '−178 °C', label: 'detectors' },
-    ],
+    figures: {
+      form: 'ladder',
+      items: [
+        { value: '−7 °C', celsius: -7, label: 'Primary mirror', tag: 'PUB' },
+        { value: '−55 °C', celsius: -55, label: 'Aft optics', tag: 'PUB' },
+        { value: '−178 °C', celsius: -178, label: 'Detectors', tag: 'PUB' },
+      ],
+    },
     next: 'Power and data',
-    source: 'roman.gsfc.nasa.gov/interactive',
+    sources: [src('https://roman.gsfc.nasa.gov/interactive/parts/telescope'), src('https://roman.gsfc.nasa.gov/interactive/parts/wfi')],
   },
   {
     id: 'power', nav: 'Power & data',
     title: 'Four kilowatts in, a terabyte a day out',
     body: [
-      'Six panels of 3,902 cells make about 4 kW. From L2, Earth lies close to the Sun’s direction, and the 1.7 m high-gain antenna sends science home over Ka-band at up to 500 megabits a second — around 1.4 terabytes a day.',
+      'From L2, Earth lies close to the Sun’s direction. The array powers the observatory, and the gimballed 1.7 m high-gain antenna sends the science home over Ka-band.',
     ],
-    stats: [
-      { value: '4 kW', label: 'solar array' },
-      { value: '500 Mb/s', label: 'Ka-band downlink' },
-      { value: '1.4 TB', label: 'per day' },
-    ],
+    figures: {
+      form: 'ledger',
+      items: [
+        { dir: 'In', value: '4 kW', label: 'six panels, 3,902 cells', tag: 'PUB' },
+        { dir: 'Out', value: '500 Mb/s', label: 'Ka-band, about 1.4 TB a day', tag: 'PUB' },
+      ],
+    },
     next: 'Take it apart',
-    source: 'roman.gsfc.nasa.gov/science/observatory_technical.html',
+    sources: [src('https://roman.gsfc.nasa.gov/science/observatory_technical.html')],
   },
   {
     id: 'explore', nav: 'Every part',
@@ -122,16 +139,19 @@ export const DEPLOYMENTS = [
 
 export const LAUNCH = Date.UTC(2026, 7, 30, 11, 26); // 07:26 EDT
 
-/** Captions for the light path's stops, in path order. */
+/**
+ * Captions for the light path's stops, in the order the explorer traces them:
+ * from the detectors back out to the sky, each one the step before the last.
+ */
 export const STOP_NOTES: Record<string, string> = {
-  aperture: 'Starlight enters the barrel, shaded by the visor.',
-  pm: 'The 2.4 m primary gathers it and sends it up.',
-  sm: 'The 581 mm secondary returns it down the axis.',
-  hole: 'A baffle tube carries it through the primary’s centre.',
-  fm1: 'Fold mirror 1 — actuated in tip, tilt and focus — turns it into the aft optics.',
-  if: 'The light comes to a first focus.',
-  fm2: 'Fold mirror 2, notched so the returning beam can pass it.',
-  tm: 'The concave tertiary forms the final image.',
-  wheel: 'One of the wheel’s eleven slots — a filter, the grism or the prism — sits in the beam.',
   fp: 'An f/7.9 image lands on the eighteen detectors.',
+  wheel: 'Just before, it crossed one of the wheel’s eleven slots: a filter, the grism or the prism.',
+  tm: 'The concave tertiary, the only curved mirror in the aft optics, formed that image.',
+  fm2: 'Fold mirror 2 sent it there, notched so the beam leaving the tertiary can pass it.',
+  if: 'Between the two folds the light came to a first focus.',
+  fm1: 'Fold mirror 1, actuated in tip, tilt and focus, turned it toward that focus.',
+  hole: 'It reached fold mirror 1 down a baffle through the primary’s centre.',
+  sm: 'The 581 mm secondary sent it down that axis.',
+  pm: 'The 2.4 m primary gathered it and sent it up to the secondary.',
+  aperture: 'It came in at the aperture, shaded by the visor.',
 };

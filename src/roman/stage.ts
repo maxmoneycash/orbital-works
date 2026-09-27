@@ -466,6 +466,8 @@ export class RomanStage {
   }
 
   get flying() { return !!this.flight; }
+  /** How far the current flight has come, eased as the camera moves; 1 when not flying. */
+  get flightEase() { return this.flight ? easeInOut(this.flight.t) : 1; }
 
   private stepFlight(dt: number) {
     const f = this.flight;
