@@ -60,21 +60,31 @@ export const partOf = (o: THREE.Object3D | null): string | null => {
  * lines is what makes it read as Roman's array rather than anyone's.
  */
 function solarCells(): THREE.Texture {
-  // 3,902 cells over six panels is ~650 each: 16 x 12 cells, repeated 2 x 2.
-  const S = 512, cols = 16, rows = 12, gap = 3;
+  // 3,902 cells over six panels is ~650 each: 13 x 12 cells, repeated 2 x 2.
+  // Thin warm gaps of substrate between near-black cells with a blue sheen:
+  // at viewing distance the array reads as dark glass, not a grid.
+  const S = 1024, cols = 13, rows = 12, gap = 5;
   const c = document.createElement('canvas');
   c.width = c.height = S;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#b3461f';
+  g.fillStyle = '#5a2a16';
   g.fillRect(0, 0, S, S);
   const cw = (S - gap) / cols, ch = (S - gap) / rows;
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      const v = 11 + ((x * 7 + y * 5) % 4);
-      g.fillStyle = `rgb(${v},${v + 3},${v + 16})`;
+      const px = gap + x * cw, py = gap + y * ch;
+      const grad = g.createLinearGradient(px, py, px + cw, py + ch);
+      const v = 12 + ((x * 7 + y * 5) % 5);
+      grad.addColorStop(0, `rgb(${v + 12},${v + 22},${v + 62})`);
+      grad.addColorStop(1, `rgb(${v + 4},${v + 10},${v + 38})`);
+      g.fillStyle = grad;
       g.beginPath();
-      g.roundRect(gap + x * cw, gap + y * ch, cw - gap, ch - gap, 3);
+      g.roundRect(px, py, cw - gap, ch - gap, 6);
       g.fill();
+      // The cell's busbars: two faint silver lines.
+      g.fillStyle = 'rgba(150,158,170,0.18)';
+      g.fillRect(px + (cw - gap) * 0.33, py + 4, 1.5, ch - gap - 8);
+      g.fillRect(px + (cw - gap) * 0.66, py + 4, 1.5, ch - gap - 8);
     }
   }
   const t = new THREE.CanvasTexture(c);
@@ -93,6 +103,9 @@ function solarCells(): THREE.Texture {
  */
 function twoSided(m: THREE.MeshStandardMaterial, inner: number, innerRough: number, innerMetal: number) {
   const col = new THREE.Color(inner);
+  // Exposed so a cutaway can lift the lining off black while it is cut.
+  m.userData.inner = col;
+  m.userData.innerBase = col.clone();
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uInner = { value: col };
     sh.vertexShader = sh.vertexShader
@@ -145,15 +158,15 @@ function author(src: THREE.Material, foil: THREE.Texture, sky: RomanModel['sky']
     case 'Mirror':
       return std({ color: 0xf3f1ea, metalness: 1, roughness: 0.035 });
     case 'SolarArray':
-      return std({ map: solarCells(), metalness: 0.35, roughness: 0.3 });
+      return std({ map: solarCells(), metalness: 0.25, roughness: 0.3, envMapIntensity: 1.3 });
     case 'Baffle_Black':
       return std({ color: 0x050506, metalness: 0, roughness: 0.95 });
     case 'Composite':
       return std({ color: 0x24272c, metalness: 0.15, roughness: 0.58 });
     case 'Structure_White':
-      return std({ color: 0xb9bbbe, metalness: 0, roughness: 0.55 });
+      return std({ color: 0x9fa2a6, metalness: 0, roughness: 0.6 });
     case 'Radiator':
-      return std({ color: 0xc8cacd, metalness: 0.1, roughness: 0.3 });
+      return std({ color: 0xa4a7ac, metalness: 0.15, roughness: 0.42 });
     case 'ULE_Glass':
       return std({ color: 0xb9c0c5, metalness: 0.05, roughness: 0.32 });
     case 'Detector': {

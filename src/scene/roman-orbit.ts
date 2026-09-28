@@ -1,59 +1,69 @@
 /**
  * Roman in orbit, on the globe: the observatory itself, where the ephemeris
- * puts it, doing what it does, close enough to fly around.
+ * puts it, lit by the Sun where the Sun is.
  *
- * Real, from the ephemeris and the app's clock: the Sun's direction, which
- * the shield always faces; Earth's, which the gimballed antenna tracks; and
- * whether a station has Roman in view, which is when the Ka-band stream runs.
+ * This layer draws; it does not decide. Each frame it is handed one state —
+ * how far it is cut open, taken apart and unfolded, how much of the light
+ * path is lit, how far an exposure has built, which streams run, which parts
+ * are named — and eases nothing itself, so a scroll can scrub every one of
+ * them forward and back. The story (roman-story.ts) sets the state.
  *
- * Shows, each played on the model rather than in a window:
- * - live: the above, as it is now;
- * - light: the barrel cut open, starlight down the optics onto the detectors,
- *   an exposure building up and reading out, then a roll to the next field
- *   (how Roman will observe; science starts after commissioning, and the
- *   fields are synthetic — the HUD says so);
- * - apart: every subsystem drawn out along its own direction, named;
- * - unfold: the deployments as flown, from the folded launch configuration.
+ * Real, whatever the state: the shield faces the Sun, the gimballed antenna
+ * tracks Earth, and the attitude follows the ephemeris.
  *
  * Every shader variant is fixed at load. `side`, `transparent` and the number
  * of clipping planes are compile-time defines in three.js, so toggling them
- * per show would recompile programs mid-flight; the cut shells keep the plane
- * for good, parked clear of the model when nothing is cut.
+ * mid-scroll would recompile programs; the cut shells keep the plane for
+ * good, parked clear of the model when nothing is cut.
  */
 import * as THREE from 'three';
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
-import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { loadRomanModel, boundsOf, subsystemOf, partOf, LENGTH, type RomanModel } from '../roman/model';
 import { LightPath } from '../roman/lightpath';
-import { Exposure } from '../roman/imaging';
-import { TARGETS, DUR, type Phase } from '../roman/sim';
+import { Exposure, type FieldKind } from '../roman/imaging';
 import { num } from '../roman/dims';
-import { SUBSYSTEM, partLabel } from '../roman/catalog';
-import { DEPLOYMENTS } from '../roman/chapters';
 import { SUN_DIR, makeL2Environment } from '../roman/l2-light';
 
 /**
  * Roman drawn to scale would be four millionths of a draw unit. Close in, it
- * is shown this much larger, about 60,000 times, and the HUD says so.
+ * is shown this much larger, about 60,000 times, and the story says so.
  */
 export const MODEL_SCALE = 0.02;
 
-export type RomanShow = 'live' | 'light' | 'apart' | 'unfold';
+/** A name pinned to a point on the model, in the model's own metres. */
+export interface OrbitLabel { id: string; text: string; at: THREE.Vector3; strong?: boolean; alpha?: number }
 
-/** What the HUD says about the show, refreshed a few times a second. */
-export interface RomanShowState {
-  show: RomanShow;
-  phase: Phase | null;
-  phaseProgress: number;
-  target: string | null;
-  /** The unfold's current step, 0 launch … 3 visor. */
-  step: number;
-  /** The part under the pointer or picked, if any. */
-  part: { name: string; subsystem: string; blurb: string } | null;
+export interface OrbitState {
+  cut: number;
+  /**
+   * 0 … 1: a scan line sweeping down the observatory, aperture to base, that
+   * turns the hardware it passes into a see-through x-ray. Mirrors and
+   * detectors stay solid, so the light can be followed through them.
+   */
+  xray: number;
+  explode: number;
+  /** 0 folded for launch … 1 deployed, per mechanism. */
+  deploy: { liss: number; sass: number; hga: number; dac: number };
+  /** 0 … 1 of the light path lit, from the aperture in. */
+  light: number;
+  /** Photons streaming along the lit path, 0 … 1. */
+  photons: number;
+  /** Frames integrated on the detectors (0: dark), and how far the readout has swept. */
+  frames: number;
+  readout: number;
+  field: { kind: FieldKind; seed: number };
+  sun: number;
+  beam: number;
+  /** Roll about the Sun line from the upright pose, radians. */
+  roll: number;
+  labels: OrbitLabel[];
 }
 
-/** Shells the section plane cuts in the light show. */
+export const REST: OrbitState = {
+  cut: 0, xray: 0, explode: 0, deploy: { liss: 1, sass: 1, hga: 1, dac: 1 }, light: 0, photons: 0,
+  frames: 0, readout: 0, field: { kind: 'deep', seed: 11 }, sun: 0, beam: 0, roll: 0, labels: [],
+};
+
+/** Shells the section plane cuts. */
 const CUT: ReadonlySet<string> = new Set([
   'TEL.OuterBarrelAssembly', 'TEL.DeployableApertureCover', 'SOLAR_ARRAY_SUN_SHIELD',
   'TEL.ForwardStructureAssembly', 'OSS.PrimaryStructure', 'OSS.LowerInstrumentSunShade',
@@ -61,7 +71,7 @@ const CUT: ReadonlySet<string> = new Set([
 ]);
 
 /** Where each subsystem goes when the observatory is taken apart, in metres. */
-const EXPLODE: Record<string, [number, number, number]> = {
+export const EXPLODE: Record<string, [number, number, number]> = {
   'OSS.LaunchVehicleAdapter': [0, -2.6, 0],
   'OSS.PrimaryStructure': [0, -1.6, 0],
   'TEL.TelescopeControlElectronics': [2.2, -1.6, -0.6],
@@ -81,26 +91,52 @@ const EXPLODE: Record<string, [number, number, number]> = {
   SOLAR_ARRAY_SUN_SHIELD: [0, 1.0, 3.4],
 };
 
-/** The subsystems named when it is taken apart. */
-const APART_LABELS = [
-  'TEL.DeployableApertureCover', 'TEL.SecondaryMirrorAssembly', 'TEL.PrimaryMirrorAssembly', 'TEL.OuterBarrelAssembly',
-  'SOLAR_ARRAY_SUN_SHIELD', 'TEL.AftOpticsModule', 'TEL.TertiaryCollimatorAssembly', 'WIDE_FIELD_INSTRUMENT',
-  'CORONAGRAPH_INSTRUMENT', 'COMMUNICATIONS', 'OSS.PrimaryStructure', 'OSS.LowerInstrumentSunShade',
-];
-
-/** The unfold, in seconds: launch held, then the four deployments as flown, in order. */
-const UNFOLD = { hold: 1.6, liss: [1.6, 4.6], hga: [5.2, 7.8], dac: [8.4, 11.6], end: 14 } as const;
-
 /** Parts that turn with the antenna's gimbal; the boom and azimuth mount stay put. */
 const GIMBALLED = ['HGA.Dish', 'HGA.Feed', 'HGA.FeedStrut', 'HGA.GimbalElevation'];
 /** How far the gimbal can swing the dish off its rest axis. */
 const GIMBAL_LIMIT = THREE.MathUtils.degToRad(75);
+/** The cut shells' lining, lifted off black while cut so the section reads against space. */
+const LINING_CUT = new THREE.Color(0x3a3d44);
+/** The scan runs from above the aperture to below the adapter, in metres along the long axis. */
+const SCAN_TOP = 13.6, SCAN_BOTTOM = -3.4;
+/** Materials the x-ray leaves solid: what the light meets. */
+const STAYS_SOLID: ReadonlySet<string> = new Set(['Mirror', 'Detector', 'Filter']);
 
-const damp = (cur: number, goal: number, k: number, dt: number) => cur + (goal - cur) * (1 - Math.exp(-k * dt));
-const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
-const span01 = (t: number, [a, b]: readonly [number, number]) => ease(THREE.MathUtils.clamp((t - a) / (b - a), 0, 1));
+/**
+ * The x-ray: faces glow by how edge-on they are (a Fresnel rim), with a faint
+ * fill, and a bright band where the scan line is passing.
+ */
+function xrayMaterial(plane: THREE.Plane, band: { value: THREE.Vector4 }) {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    clipping: true, clippingPlanes: [plane],
+    uniforms: { uColor: { value: new THREE.Color(0xa9c4ff) }, uOpacity: { value: 0 }, uBand: band },
+    vertexShader: `
+      #include <clipping_planes_pars_vertex>
+      varying vec3 vN; varying vec3 vV; varying vec3 vW;
+      void main() {
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal); vV = -mvPosition.xyz; vW = (modelMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <clipping_planes_vertex>
+      }`,
+    fragmentShader: `
+      #include <clipping_planes_pars_fragment>
+      uniform vec3 uColor; uniform float uOpacity; uniform vec4 uBand;
+      varying vec3 vN; varying vec3 vV; varying vec3 vW;
+      void main() {
+        #include <clipping_planes_fragment>
+        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.4);
+        // The band: the scan front, uBand.xyz its plane normal, w its offset.
+        float d = abs(dot(uBand.xyz, vW) + uBand.w);
+        float band = exp(-d * d * 1.5e5) * 1.4;
+        float a = (0.022 + f * 0.8) * uOpacity + band * uOpacity;
+        gl_FragColor = vec4(uColor * a, a);
+      }`,
+  });
+}
 
-interface Tag { el: HTMLDivElement; line: SVGLineElement; on: boolean }
+interface Tag { el: HTMLDivElement; text: HTMLSpanElement; dot: HTMLSpanElement; line: SVGLineElement; on: boolean }
 
 /**
  * Streaks of light or data running along one direction: each rides its own
@@ -166,82 +202,48 @@ type Stream = ReturnType<typeof stream>;
 export class RomanInOrbit {
   /** At Roman's position, scaled, with the shield turned to the Sun. */
   readonly holder = new THREE.Group();
-  /** The roll about the Sun line, which turning to a new field changes. */
+  /** The roll about the Sun line. */
   private frame = new THREE.Group();
-  /** The model's own frame, centred on its middle. */
-  private body = new THREE.Group();
+  /** The model's own frame, in metres: y 0 at the launch adapter, +z the sun side. */
+  readonly body = new THREE.Group();
   model: RomanModel | null = null;
-  show: RomanShow = 'live';
+  light: LightPath | null = null;
   /** Set by the owner: whether the model is drawn at all this frame. */
   visible = false;
+  /** Where each subsystem sits, assembled, in the model's metres. */
+  readonly centres = new Map<string, THREE.Vector3>();
 
-  private light: LightPath | null = null;
   private clip = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
-  private sunLight = new THREE.DirectionalLight(0xfff3e2, 3.0);
-  private fill = new THREE.DirectionalLight(0xb8cae8, 0.8);
+  /** The scan: solid is kept below it, x-ray drawn above it. */
+  private scanSolid = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+  private scanXray = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  private scanBand = { value: new THREE.Vector4(0, 1, 0, 1e6) };
+  private xrayMat: THREE.ShaderMaterial;
+  /** The light's front as it travels in: a bright point leading the lit path. */
+  private front: THREE.Sprite;
+  private sunLight = new THREE.DirectionalLight(0xfff1de, 3.4);
+  /** Sky above, a warm floor below: shade that still reads, as in a studio. */
+  private sky = new THREE.HemisphereLight(0xc4d4ee, 0x2b2622, 1.1);
+  private fill = new THREE.DirectionalLight(0xd6e0f0, 0.55);
   /** A cool edge from behind, so silhouettes read against black. */
-  private rim = new THREE.DirectionalLight(0xb4ccf0, 0.85);
-  private ambient = new THREE.AmbientLight(0x2c3646, 0.9);
-  /** Ghost rims of the cut shells, so the cutaway keeps its shape against space. */
-  private ghosts = new THREE.Group();
-  private ghostMat = new THREE.LineBasicMaterial({ color: 0xf2f1ec, transparent: true, opacity: 0, depthWrite: false });
-  private live = new THREE.Color(0x44ff44);
-  private tint = new THREE.Color(0x8cff8c);
+  private rim = new THREE.DirectionalLight(0xb4ccf0, 0.9);
 
-  // --- states the frame eases toward ------------------------------------
-  private cut = 0;
-  private explode = 0;
-  private lightOpacity = 0;
-  private skyGain = 0;
-  private sunA = 0;
-  private beamA = 0;
-  private holoA = 0;
-  private deploy = { liss: 1, sass: 1, hga: 1, dac: 1 };
-  private roll = 0;
-
-  // --- the observing cycle (light show) ---------------------------------
-  private phase: Phase = 'slew';
-  private phaseT = 0;
-  private targetIndex = 0;
-  private exposures = 0;
-  private rollFrom = 0;
-  private rollTo = 0;
-  private integrateClock = 0;
-  private exposure: Exposure | null = null;
-  private exposureTex: THREE.CanvasTexture | null = null;
-  /** The camera the sky is painted onto the detectors from, in the model's frame. */
-  private skyCam: { P: THREE.Matrix4; local: THREE.Matrix4 } | null = null;
-  private holo: THREE.Mesh | null = null;
-  private holoFrame: THREE.LineSegments | null = null;
-  private holoLeader: Line2 | null = null;
-
-  // --- the unfold -------------------------------------------------------
-  private unfoldT = 0;
-
-  // --- effects ----------------------------------------------------------
-  private leaderMat: LineMaterial;
   private sunlight: Stream;
   private downlink: Stream | null = null;
   private beamGroup = new THREE.Group();
-  private station: string | null = null;
   private gimbal: THREE.Group | null = null;
   private bore = new THREE.Vector3(0, 0, 1);
   private gimbalQ = new THREE.Quaternion();
   private feed = new THREE.Object3D();
-  private subCentres = new Map<string, THREE.Vector3>();
   private wfiHousing: THREE.Mesh[] = [];
+  private linings: THREE.MeshStandardMaterial[] = [];
   private mats: THREE.MeshStandardMaterial[] = [];
-
-  // --- picking ----------------------------------------------------------
-  private raycaster = new THREE.Raycaster();
-  private pointer: { x: number; y: number } | null = null;
-  private down: { x: number; y: number } | null = null;
-  private hoverClock = 0;
-  private hover: { part: string; point: THREE.Vector3 } | null = null;
-  private picked: { part: string; point: THREE.Vector3 } | null = null;
+  private exposure: Exposure | null = null;
+  private exposureTex: THREE.CanvasTexture | null = null;
+  private skyCam: { P: THREE.Matrix4; local: THREE.Matrix4 } | null = null;
+  private drawn = { frames: -1, readout: -1, kind: '', seed: -1 };
   private clock = 0;
 
-  // --- labels -----------------------------------------------------------
   private tagHost: HTMLDivElement;
   private svg: SVGSVGElement;
   private tags = new Map<string, Tag>();
@@ -250,9 +252,7 @@ export class RomanInOrbit {
   private tmp = new THREE.Vector3();
   private tmpQ = new THREE.Quaternion();
   private baseQ = new THREE.Quaternion();
-  private tmpM = new THREE.Matrix4();
   private euler = new THREE.Euler();
-  private cleanup: (() => void)[] = [];
 
   constructor(private renderer: THREE.WebGLRenderer, uiRoot: HTMLElement) {
     this.holder.name = 'roman-in-orbit';
@@ -262,78 +262,54 @@ export class RomanInOrbit {
     this.frame.add(this.body);
     this.body.position.set(0, -LENGTH / 2, 0);
     this.renderer.localClippingEnabled = true;
+    this.xrayMat = xrayMaterial(this.scanXray, this.scanBand);
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.2, 'rgba(235,245,255,0.7)'); grad.addColorStop(1, 'rgba(200,220,255,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.front = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+    this.front.scale.setScalar(1.6);
+    this.front.renderOrder = 20;
+    this.front.visible = false;
+    this.body.add(this.front);
 
-    this.leaderMat = new LineMaterial({ color: 0xf2f1ec, linewidth: 1, transparent: true, opacity: 0, depthWrite: false });
-
-    // Sunlight arriving on the shield's face (z ≈ 2.7 m): photons drifting in
+    // Sunlight arriving on the shield's face (z ≈ 2.7 m): streaks drifting in
     // along the Sun's direction and ending on the array.
     let seed = 5;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     const px = Math.min(devicePixelRatio || 1, 2);
     this.sunlight = stream({
-      n: 170, dir: SUN_DIR, len: 12, tail: 2.2, speed: 0.2, size: 2.6 * px, color: 0xffd49a, inbound: true,
+      n: 150, dir: SUN_DIR, len: 12, tail: 2.2, speed: 0.2, size: 2.4 * px, color: 0xffd49a, inbound: true,
       lane: () => new THREE.Vector3(-2.3 + rnd() * 4.6, 2.6 + rnd() * 4.8, 2.74),
     });
     this.body.add(this.sunlight.obj);
 
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.setScalar(2048);
-    Object.assign(this.sunLight.shadow.camera, { left: -0.2, right: 0.2, top: 0.2, bottom: -0.2, near: 0.4, far: 1.6 });
+    Object.assign(this.sunLight.shadow.camera, { left: -0.22, right: 0.22, top: 0.22, bottom: -0.22, near: 0.4, far: 1.8 });
     this.sunLight.shadow.bias = -0.0004;
     this.sunLight.shadow.normalBias = 0.0006;
-    this.sunLight.target = this.holder;
-    this.fill.target = this.holder;
-    this.rim.target = this.holder;
+    for (const l of [this.sunLight, this.fill, this.rim]) l.target = this.holder;
     // The lights stay on for good. Nothing else in the globe's scene is lit,
     // and the number of visible lights is baked into every lit program, so
     // switching them with the model would recompile its shaders each time.
 
-    // Labels: chips in the page, tied to their points by hairline leaders.
     this.tagHost = document.createElement('div');
     this.tagHost.className = 'roman-tags';
-    Object.assign(this.tagHost.style, { position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden', display: 'none' });
+    Object.assign(this.tagHost.style, { position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden', display: 'none', zIndex: '45' });
     this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     Object.assign(this.svg.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', overflow: 'visible' });
     this.tagHost.append(this.svg);
     uiRoot.prepend(this.tagHost);
-
-    const canvas = renderer.domElement;
-    const move = (e: PointerEvent) => { if (e.pointerType === 'mouse') this.pointer = { x: e.clientX, y: e.clientY }; };
-    const leave = () => { this.pointer = null; };
-    const down = (e: PointerEvent) => { this.down = { x: e.clientX, y: e.clientY }; };
-    const up = (e: PointerEvent) => {
-      const d = this.down;
-      this.down = null;
-      if (!d || !this.visible || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5) return;
-      const hit = this.pick(e.clientX, e.clientY);
-      this.picked = hit && this.picked?.part !== hit.part ? hit : null;
-    };
-    canvas.addEventListener('pointermove', move, { passive: true });
-    canvas.addEventListener('pointerleave', leave, { passive: true });
-    canvas.addEventListener('pointerdown', down, { passive: true });
-    canvas.addEventListener('pointerup', up, { passive: true });
-    this.cleanup.push(() => {
-      canvas.removeEventListener('pointermove', move);
-      canvas.removeEventListener('pointerleave', leave);
-      canvas.removeEventListener('pointerdown', down);
-      canvas.removeEventListener('pointerup', up);
-    });
   }
 
-  /** The lights live beside the holder in the globe's scene; add both. */
+  /** The lights live beside the holder in the globe's scene; add them all. */
   get objects(): THREE.Object3D[] {
-    return [this.holder, this.sunLight, this.fill, this.rim, this.ambient];
-  }
-
-  private line(a: THREE.Vector3, b: THREE.Vector3, m: LineMaterial, into: THREE.Object3D) {
-    const g = new LineGeometry();
-    g.setPositions([a.x, a.y, a.z, b.x, b.y, b.z]);
-    const l = new Line2(g, m);
-    l.computeLineDistances();
-    l.frustumCulled = false;
-    l.renderOrder = 10;
-    into.add(l);
-    return l;
+    return [this.holder, this.sunLight, this.sky, this.fill, this.rim];
   }
 
   /* ------------------------------------------------------------- loading -- */
@@ -346,20 +322,19 @@ export class RomanInOrbit {
     // Everything measured here is in the model's own frame: the root is not
     // parented yet, so world space is model space.
     this.light = new LightPath(model);
-    for (const [sub, meshes] of model.bySubsystem) this.subCentres.set(sub, boundsOf(meshes).getCenter(new THREE.Vector3()));
+    for (const [sub, meshes] of model.bySubsystem) this.centres.set(sub, boundsOf(meshes).getCenter(new THREE.Vector3()));
     this.wfiHousing = model.meshes.filter((m) => (partOf(m) ?? '').startsWith('WFI.Body'));
 
     // The antenna's gimbal: the dish, feed and struts turn together about the
-    // gimbal's centre. Their origins stay on the deploy hinge, so the unfold
+    // gimbal's centre. Their origins stay on the deploy hinge, so unfolding
     // still swings them out on it, with the gimbal at rest.
     const P = (p: string) => model.byPart.get(p);
     const dish = P('HGA.Dish'), feed = P('HGA.Feed'), elev = P('HGA.GimbalElevation');
     if (dish && feed && elev && dish.parent) {
       const comms = dish.parent;
-      const pivot = comms.worldToLocal(boundsOf([elev]).getCenter(new THREE.Vector3()));
       const g = new THREE.Group();
       g.name = 'hga-gimbal';
-      g.position.copy(pivot);
+      g.position.copy(comms.worldToLocal(boundsOf([elev]).getCenter(new THREE.Vector3())));
       comms.add(g);
       g.updateMatrixWorld(true);
       for (const m of model.meshes) {
@@ -368,7 +343,6 @@ export class RomanInOrbit {
       }
       const fc = boundsOf([feed]).getCenter(new THREE.Vector3()), dc = boundsOf([dish]).getCenter(new THREE.Vector3());
       this.bore.copy(comms.worldToLocal(fc.clone())).sub(comms.worldToLocal(dc.clone())).normalize();
-      // The Ka-band stream leaves from the feed along the boresight.
       this.feed.position.copy(g.worldToLocal(fc.clone()));
       g.add(this.feed);
       this.beamGroup.position.copy(this.feed.position);
@@ -410,36 +384,9 @@ export class RomanInOrbit {
     this.exposure = new Exposure(outlines, W, H, { scale: 1 });
     this.exposureTex = new THREE.CanvasTexture(this.exposure.canvas);
     this.exposureTex.colorSpace = THREE.SRGBColorSpace;
-    this.exposureTex.magFilter = THREE.NearestFilter;
     model.sky.map.value = this.exposureTex;
     this.skyCam = { P: cam.projectionMatrix.clone(), local: cam.matrixWorld.clone() };
-
-    // The exposure, held up beside the instrument like a readout, with a
-    // leader back down to the focal plane it comes from.
-    const holoAt = new THREE.Vector3(5.2, 6.4, -0.6);
-    this.holo = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 2.8), new THREE.MeshBasicMaterial({
-      map: this.exposureTex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
-    }));
-    (this.holo.material as THREE.MeshBasicMaterial).color.setScalar(1.7);
-    this.holo.position.copy(holoAt);
-    this.holo.renderOrder = 12;
-    this.holoFrame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(5.7, 2.9)),
-      new THREE.LineBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0, depthWrite: false }));
-    this.holo.add(this.holoFrame);
-    this.holoLeader = this.line(c.clone().setY(bb.max.y), holoAt.clone().add(new THREE.Vector3(-2.85, -1.4, 0)), this.leaderMat, this.body);
-
-    // Ghost rims: the barrel's and visor's edges, drawn faintly while cut.
-    for (const pn of ['OBA.Barrel', 'DAC.Membrane']) {
-      const mesh = model.byPart.get(pn);
-      if (!mesh) continue;
-      const e = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 25), this.ghostMat);
-      mesh.updateWorldMatrix(true, false);
-      e.matrixAutoUpdate = false;
-      e.matrix.copy(mesh.matrixWorld);
-      e.userData.of = mesh;
-      this.ghosts.add(e);
-    }
-    this.ghosts.visible = false;
+    this.centres.set('focal-plane', c.clone().setY(bb.max.y));
 
     // Fix every material's variant now, once.
     const env = makeL2Environment(this.renderer);
@@ -448,32 +395,45 @@ export class RomanInOrbit {
       mesh.castShadow = mesh.receiveShadow = true;
       if (mat.name === 'Detector') continue;
       const cutMe = CUT.has(subsystemOf(mesh) ?? '');
+      const solid = STAYS_SOLID.has(mat.name);
+      const planes = [...(cutMe ? [this.clip] : []), ...(solid ? [] : [this.scanSolid])];
       Object.assign(mat, {
-        transparent: false, opacity: 1, depthWrite: true, envMap: env, envMapIntensity: 0.6,
-        clippingPlanes: cutMe ? [this.clip] : null, side: cutMe ? THREE.DoubleSide : THREE.FrontSide,
+        transparent: false, opacity: 1, depthWrite: true, envMap: env, envMapIntensity: mat.envMapIntensity === 1 ? 1.0 : mat.envMapIntensity,
+        clippingPlanes: planes.length ? planes : null, side: cutMe ? THREE.DoubleSide : THREE.FrontSide,
+        emissiveIntensity: 0,
       });
+      // Its x-ray twin rides along as a child, so it follows every fold,
+      // explode and gimbal the part makes.
+      if (!solid) {
+        const x = new THREE.Mesh(mesh.geometry, this.xrayMat);
+        x.renderOrder = 8;
+        x.castShadow = x.receiveShadow = false;
+        x.userData.xray = true;
+        mesh.add(x);
+      }
       mat.needsUpdate = true;
       this.mats.push(mat);
+      if (mat.userData.inner) this.linings.push(mat);
     }
     const det = model.detectors[0]?.material as THREE.MeshStandardMaterial | undefined;
     if (det) { det.envMap = env; det.needsUpdate = true; this.mats.push(det); }
 
-    this.body.add(root, this.light.group, this.holo, this.ghosts);
-    this.light.set(this.light.length, false, 0);
+    this.body.add(root, this.light.group);
+    this.light.set(0, false, 0);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.model = model;
-    this.startSlew();
 
     // Compile every program now, off the critical path, rather than in the
     // first frame the camera arrives. compileAsync skips hidden objects, so
-    // everything a show can reveal is shown for the pass; capped, since a
+    // everything the story can reveal is shown for the pass; capped, since a
     // hidden tab never resolves it.
     let scene: THREE.Object3D = this.holder;
     while (scene.parent) scene = scene.parent;
-    const reveal = [this.holder, this.light.group, this.holo, this.ghosts, this.beamGroup, this.sunlight.obj];
+    const reveal = [this.holder, this.light.group, this.beamGroup, this.sunlight.obj];
     const was = reveal.map((o) => o.visible);
     for (const o of reveal) o.visible = true;
+    this.light.set(this.light.length, false, 1);
     try {
       await Promise.race([
         this.renderer.compileAsync(this.holder, camera, (scene as THREE.Scene).isScene ? scene as THREE.Scene : null),
@@ -481,60 +441,14 @@ export class RomanInOrbit {
       ]);
     } catch { /* compiles lazily instead */ }
     reveal.forEach((o, i) => { o.visible = was[i]; });
+    this.light.set(0, false, 0);
   }
 
-  /* --------------------------------------------------------------- shows -- */
-
-  setShow(s: RomanShow) {
-    if (s === this.show && s !== 'unfold') return;
-    this.show = s;
-    this.picked = null;
-    if (s === 'light') { this.phase = 'settle'; this.phaseT = 0; }
-    if (s === 'unfold') {
-      this.unfoldT = 0;
-      // Folded, as it rode the rocket.
-      this.deploy = { liss: 0, sass: 0, hga: 0, dac: 0 };
-    }
-  }
-
-  /** The show as the HUD tells it. */
-  get state(): RomanShowState {
-    const sel = this.picked ?? this.hover;
-    let part: RomanShowState['part'] = null;
-    if (sel) {
-      const mesh = this.model?.byPart.get(sel.part);
-      const sub = mesh ? subsystemOf(mesh) ?? '' : '';
-      const info = SUBSYSTEM[sub];
-      part = { name: partLabel(sel.part), subsystem: info?.label ?? '', blurb: info?.blurb.split('. ')[0].replace(/\.$/, '') + '.' };
-    }
-    const step = this.unfoldT < UNFOLD.hold ? 0 : this.unfoldT < UNFOLD.hga[0] ? 1 : this.unfoldT < UNFOLD.dac[0] ? 2 : 3;
-    return {
-      show: this.show,
-      phase: this.show === 'light' ? this.phase : null,
-      phaseProgress: Math.min(1, this.phaseT / DUR[this.phase]),
-      target: this.show === 'light' ? TARGETS[this.targetIndex].survey : null,
-      step,
-      part,
-    };
-  }
-
-  /** Where the Ka-band stream leaves the dish, in the globe's frame. */
-  feedWorld(out = new THREE.Vector3()) {
-    return this.feed.getWorldPosition(out);
-  }
-
-  setLive(c: THREE.Color) {
-    this.live.copy(c);
-    this.tint.copy(c).lerp(new THREE.Color(0xffffff), 0.45);
-    this.downlink?.u.uColor.value.copy(c);
-    (this.holoFrame?.material as THREE.LineBasicMaterial | undefined)?.color.copy(c);
-    this.light?.setLive(c);
-  }
+  /* ------------------------------------------------------------ attitude -- */
 
   /**
    * The shield on the Sun leaves one angle free: the roll about the Sun
-   * line. Where the observing cycle isn't choosing it, it is set to stand
-   * the telescope upright on screen.
+   * line. Where nothing else chooses it, it stands the telescope upright.
    */
   private attitude(toSun: THREE.Vector3, out = new THREE.Quaternion()) {
     out.setFromUnitVectors(SUN_DIR, toSun);
@@ -551,137 +465,46 @@ export class RomanInOrbit {
     return out;
   }
 
-  /**
-   * Where a camera should sit to see Roman three-quarters on from the sun
-   * side, a little above: a unit direction from Roman, in the globe's frame.
-   */
-  viewDir(toSun: THREE.Vector3): THREE.Vector3 {
-    const d = new THREE.Vector3(0.75, 0.29, 0.595).normalize().applyAxisAngle(SUN_DIR, this.roll);
-    return d.applyQuaternion(this.attitude(toSun));
+  /** Where the Ka-band stream leaves the dish, in the globe's frame. */
+  feedWorld(out = new THREE.Vector3()) {
+    return this.feed.getWorldPosition(out);
   }
 
-  private startSlew() {
-    this.phase = 'slew';
-    this.phaseT = 0;
-    this.rollFrom = this.roll;
-    // A turn of 25–70° about the Sun line, back toward upright once it has
-    // wandered, so field after field it never ends up on its head.
-    const dir = this.roll > 0.6 ? -1 : this.roll < -0.6 ? 1 : Math.random() < 0.5 ? -1 : 1;
-    const turn = THREE.MathUtils.degToRad(25 + Math.random() * 45) * dir;
-    this.rollTo = this.roll + turn;
+  /** Earth's direction in the model's own frame (unit), as the gimbal sees it. */
+  readonly earthLocal = new THREE.Vector3(0, 0, 1);
+
+  setLive(c: THREE.Color) {
+    this.downlink?.u.uColor.value.copy(c);
+    this.light?.setLive(c);
   }
-
-  private stepCycle(dt: number) {
-    const e = this.exposure!;
-    this.phaseT += dt;
-    switch (this.phase) {
-      case 'slew':
-        this.roll = this.rollFrom + (this.rollTo - this.rollFrom) * ease(Math.min(1, this.phaseT / DUR.slew));
-        if (this.phaseT >= DUR.slew) { this.phase = 'settle'; this.phaseT = 0; }
-        break;
-      case 'settle':
-        if (this.phaseT >= DUR.settle) {
-          this.phase = 'expose';
-          this.phaseT = 0;
-          const t = TARGETS[this.targetIndex];
-          e.setScene(t.kind, t.seed + this.exposures * 101);
-        }
-        break;
-      case 'expose':
-        // 20 frames a second, so the picture builds at a pace you can watch.
-        if ((this.integrateClock += dt) > 0.05) {
-          this.integrateClock = 0;
-          e.integrate(1);
-          e.draw();
-          this.exposureTex!.needsUpdate = true;
-        }
-        if (this.phaseT >= DUR.expose) { this.phase = 'readout'; this.phaseT = 0; }
-        break;
-      case 'readout':
-        e.read = Math.min(1, this.phaseT / DUR.readout);
-        e.draw();
-        this.exposureTex!.needsUpdate = true;
-        if (this.phaseT >= DUR.readout) {
-          this.exposures++;
-          this.targetIndex = (this.targetIndex + 1) % TARGETS.length;
-          this.startSlew();
-        }
-        break;
-    }
-  }
-
-  /* -------------------------------------------------------------- picking -- */
-
-  private pick(x: number, y: number): { part: string; point: THREE.Vector3 } | null {
-    const m = this.model;
-    const cam = this.camera;
-    if (!m || !cam) return null;
-    const r = this.renderer.domElement.getBoundingClientRect();
-    this.raycaster.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), cam);
-    for (const h of this.raycaster.intersectObjects(m.meshes, false)) {
-      const mesh = h.object as THREE.Mesh;
-      if (!mesh.visible) continue;
-      // The near half of a cut shell is not drawn; nor can it be picked.
-      const mat = mesh.material as THREE.Material;
-      if (mat.clippingPlanes?.length && this.clip.distanceToPoint(h.point) < 0) continue;
-      const part = partOf(mesh);
-      if (part) return { part, point: this.body.worldToLocal(h.point.clone()) };
-    }
-    return null;
-  }
-
-  private camera: THREE.PerspectiveCamera | null = null;
 
   /* --------------------------------------------------------------- frame -- */
 
-  /**
-   * `draw` Roman's position in the globe's frame; `toSun`, `toEarth` unit
-   * directions from it; `station` the one that has it in view, if any.
-   */
   update(o: {
-    draw: THREE.Vector3; toSun: THREE.Vector3; toEarth: THREE.Vector3; station: string | null;
-    camera: THREE.PerspectiveCamera; dt: number; w: number; h: number; inspecting: boolean;
-    labels: { id: string; text: string; at: THREE.Vector3 }[];
+    draw: THREE.Vector3; toSun: THREE.Vector3; toEarth: THREE.Vector3;
+    camera: THREE.PerspectiveCamera; dt: number; w: number; h: number; showTags: boolean;
+    state: OrbitState;
   }) {
     const m = this.model;
-    const on = this.visible && !!m;
-    this.holder.visible = on;
-    this.tagHost.style.display = on && o.inspecting ? '' : 'none';
-    if (!on || !m) { this.picked = this.hover = null; return; }
-    const dt = Math.min(o.dt, 0.1);
-    this.camera = o.camera;
-    this.clock += dt;
-
-    // Goals for the show.
-    const s = this.show;
-    if (s === 'light') this.stepCycle(dt);
-    else this.roll = damp(this.roll, 0, 1.2, dt);
-    if (s === 'unfold') {
-      const t = (this.unfoldT += dt * (this.reducedMotion ? 4 : 1));
-      this.deploy.liss = this.deploy.sass = t < UNFOLD.hold ? 0 : span01(t, UNFOLD.liss);
-      this.deploy.hga = span01(t, UNFOLD.hga);
-      this.deploy.dac = span01(t, UNFOLD.dac);
-      if (t >= UNFOLD.end) this.setShow('live');
-    } else {
-      for (const k of ['liss', 'sass', 'hga', 'dac'] as const) this.deploy[k] = damp(this.deploy[k], 1, 3, dt);
-    }
-    const exposing = s === 'light' && (this.phase === 'expose' || this.phase === 'settle');
-    this.cut = damp(this.cut, s === 'light' ? 1 : 0, 2.4, dt);
-    this.explode = damp(this.explode, s === 'apart' ? 1 : 0, 2.2, dt);
-    this.lightOpacity = damp(this.lightOpacity, exposing && this.phase === 'expose' ? 1 : 0, 3, dt);
-    this.skyGain = damp(this.skyGain, s !== 'light' ? 0 : this.phase === 'slew' ? 0.25 : 1.5, 3, dt);
-    this.holoA = damp(this.holoA, s === 'light' ? 1 : 0, 3, dt);
-    this.sunA = damp(this.sunA, s === 'live' || s === 'light' ? 1 : 0, 2.5, dt);
-    this.station = o.station;
-    this.beamA = damp(this.beamA, o.station && s !== 'unfold' && this.deploy.hga > 0.98 ? 1 : 0, 2.5, dt);
-
-    // Where it is and which way it faces: the shield on the Sun, then the roll.
+    const s = o.state;
+    // Where it is and which way it faces — the shield on the Sun, then the
+    // roll — kept even while it isn't drawn, so a camera can frame it in its
+    // own terms before arriving.
     this.holder.position.copy(o.draw);
     this.holder.quaternion.copy(this.attitude(o.toSun, this.baseQ));
-    this.frame.quaternion.setFromAxisAngle(SUN_DIR, this.roll);
+    this.frame.quaternion.setFromAxisAngle(SUN_DIR, s.roll);
     this.holder.updateMatrixWorld(true);
+    this.body.getWorldQuaternion(this.tmpQ);
+    this.earthLocal.copy(o.toEarth).applyQuaternion(this.tmpQ.clone().invert()).normalize();
 
-    // The antenna on Earth.
+    const on = this.visible && !!m;
+    this.holder.visible = on;
+    this.tagHost.style.display = on && o.showTags ? '' : 'none';
+    if (!on || !m) return;
+    const dt = Math.min(o.dt, 0.1);
+    this.clock += dt;
+
+    // The antenna on Earth, once it is deployed.
     const g = this.gimbal;
     if (g?.parent) {
       g.parent.getWorldQuaternion(this.tmpQ).invert();
@@ -690,120 +513,123 @@ export class RomanInOrbit {
       const ang = 2 * Math.acos(Math.min(1, Math.abs(goal.w)));
       if (ang > GIMBAL_LIMIT) goal.slerp(new THREE.Quaternion(), 1 - GIMBAL_LIMIT / ang);
       this.gimbalQ.slerp(goal, 1 - Math.exp(-3 * dt));
-      g.quaternion.identity().slerp(this.gimbalQ, this.deploy.hga);
+      g.quaternion.identity().slerp(this.gimbalQ, s.deploy.hga);
     }
 
-    // Lights: the Sun where it is; a soft fill from the viewer so the shaded
-    // side still reads; reflections turned with the model.
+    // Lights: the Sun where it is; a soft fill from the viewer's side; a rim
+    // from behind; reflections turned with the model.
     const size = MODEL_SCALE * LENGTH;
     this.sunLight.position.copy(o.draw).addScaledVector(o.toSun, size * 4);
     this.fill.position.copy(o.camera.position);
-    // Behind the model from the camera, and above it.
     this.rim.position.copy(o.draw).multiplyScalar(2).sub(o.camera.position).addScaledVector(o.camera.up, size * 2);
+    this.sky.position.copy(o.draw).add(new THREE.Vector3(0, 1, 0).applyQuaternion(this.body.getWorldQuaternion(this.tmpQ)));
     this.body.getWorldQuaternion(this.tmpQ);
     this.euler.setFromQuaternion(this.tmpQ, 'ZYX');
     for (const mat of this.mats) mat.envMapRotation.set(this.euler.x, this.euler.y, this.euler.z, 'XYZ');
 
-    this.applyParts(o.camera);
+    this.applyParts(o.camera, s);
 
-    // Effects.
-    this.leaderMat.resolution.set(o.w, o.h);
+    // Streams.
     const motion = this.reducedMotion ? 0.25 : 1;
-    const su = this.sunlight.u;
-    su.uTime.value += dt * motion;
-    su.uOpacity.value = 0.85 * this.sunA;
-    this.sunlight.obj.visible = this.sunA > 0.01;
+    this.sunlight.u.uTime.value += dt * motion;
+    this.sunlight.u.uOpacity.value = 0.85 * s.sun;
+    this.sunlight.obj.visible = s.sun > 0.01;
     if (this.downlink) {
       this.downlink.u.uTime.value += dt * motion;
-      this.downlink.u.uOpacity.value = this.beamA;
+      this.downlink.u.uOpacity.value = s.beam;
     }
-    this.beamGroup.visible = this.beamA > 0.01;
+    this.beamGroup.visible = s.beam > 0.01;
+
+    // Light, and the picture it makes.
     const L = this.light!;
     L.setResolution(o.w, o.h);
-    // Gentle: two dozen rays meet at the focal plane, and additive pulses
-    // stacked there would blow out into a white block.
-    L.set(L.length, false, this.lightOpacity * 0.38);
-    this.ghostMat.opacity = 0.22 * this.cut;
-    this.ghosts.visible = this.cut > 0.02;
-    if (this.ghosts.visible && m.dac) {
-      // The visor's rim follows its deploy height.
-      for (const g of this.ghosts.children) {
-        const of = g.userData.of as THREE.Object3D;
-        g.matrix.copy(of.matrixWorld).premultiply(this.tmpM.copy(this.body.matrixWorld).invert());
-      }
+    const lit = s.light >= 0.999 ? L.length : s.light * L.length;
+    const seen = Math.max(s.cut > 0.2 ? 0.55 : 0, s.xray > 0.5 ? 0.95 : 0);
+    L.set(lit, false, Math.min(1, s.light * 8) * seen);
+    L.tick(dt * motion, lit, 0.6 * s.photons);
+    // The front: leading the light in, gone once it has arrived.
+    const going = seen > 0 && s.light > 0.002 && s.light < 0.995;
+    this.front.visible = going;
+    if (going) {
+      L.at(lit, this.front.position);
+      (this.front.material as THREE.SpriteMaterial).opacity = Math.min(1, s.light * 20) * Math.min(1, (1 - s.light) * 20);
     }
-    L.tick(dt * (this.reducedMotion ? 0.3 : 1), L.length);
-    m.sky.gain.value = this.skyGain;
-    if (this.skyCam && this.skyGain > 0.001) {
+    this.paintExposure(s);
+    m.sky.gain.value = s.frames > 0 ? 1.6 : 0;
+    if (this.skyCam && s.frames > 0) {
       const wm = new THREE.Matrix4().multiplyMatrices(this.body.matrixWorld, this.skyCam.local);
       m.sky.vp.value.multiplyMatrices(this.skyCam.P, wm.invert());
     }
-    if (this.holo) {
-      this.holo.visible = this.holoA > 0.01;
-      (this.holo.material as THREE.MeshBasicMaterial).opacity = 0.9 * this.holoA;
-      (this.holoFrame!.material as THREE.LineBasicMaterial).opacity = 0.7 * this.holoA;
-      this.leaderMat.opacity = 0.45 * this.holoA;
-      this.holoLeader!.visible = this.holoA > 0.01;
-      // Square to the viewer, like a screen held up beside the instrument.
-      this.holo.quaternion.copy(this.body.getWorldQuaternion(this.tmpQ).invert()).multiply(o.camera.quaternion);
-    }
 
-    // Hover, a few times a second.
-    if ((this.hoverClock += dt) > 0.08) {
-      this.hoverClock = 0;
-      this.hover = this.pointer && o.inspecting ? this.pick(this.pointer.x, this.pointer.y) : null;
-    }
-
-    this.placeTags(o);
+    this.placeTags(o.camera, o.w, o.h, o.showTags ? s.labels : []);
   }
 
-  private applyParts(camera: THREE.PerspectiveCamera) {
+  private paintExposure(s: OrbitState) {
+    const e = this.exposure;
+    if (!e || !this.exposureTex) return;
+    const frames = Math.round(s.frames), read = Math.round(s.readout * 100) / 100;
+    const d = this.drawn;
+    if (d.kind !== s.field.kind || d.seed !== s.field.seed) {
+      e.setScene(s.field.kind, s.field.seed);
+      d.kind = s.field.kind; d.seed = s.field.seed; d.frames = -1;
+    }
+    if (d.frames === frames && d.readout === read) return;
+    e.drawAt(frames, read);
+    this.exposureTex.needsUpdate = true;
+    d.frames = frames; d.readout = read;
+  }
+
+  private applyParts(camera: THREE.PerspectiveCamera, s: OrbitState) {
     const m = this.model!;
     // Section plane through the long axis, facing away from the camera, so
     // the near half is the half cut away; parked 12 m toward the camera when
-    // nothing is cut, clear of everything, exploded view included.
+    // nothing is cut, clear of everything, taken apart included.
     const axisO = this.body.localToWorld(new THREE.Vector3(0, 0, 0));
     const axisD = new THREE.Vector3(0, 1, 0).applyQuaternion(this.body.getWorldQuaternion(this.tmpQ));
     const n = new THREE.Vector3().subVectors(axisO, camera.position);
     n.addScaledVector(axisD, -n.dot(axisD));
     if (n.lengthSq() < 1e-12) n.set(0, 0, -1);
     n.normalize();
-    const park = (1 - this.cut) * (1 - this.cut) * 12 * MODEL_SCALE;
+    const park = (1 - s.cut) * (1 - s.cut) * 12 * MODEL_SCALE;
     this.clip.setFromNormalAndCoplanarPoint(n, axisO.addScaledVector(n, -park));
+    for (const mat of this.linings) (mat.userData.inner as THREE.Color).copy(mat.userData.innerBase).lerp(LINING_CUT, s.cut);
 
-    const e = this.explode;
-    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 2.6);
-    const hov = this.hover?.part, sel = this.picked?.part;
+    // The scan front, down the long axis; parked above the aperture at 0.
+    const y = SCAN_TOP + (SCAN_BOTTOM - SCAN_TOP) * s.xray;
+    const q = this.body.getWorldQuaternion(new THREE.Quaternion());
+    const down = new THREE.Vector3(0, -1, 0).applyQuaternion(q);
+    const at = this.body.localToWorld(new THREE.Vector3(0, y, 0));
+    this.scanSolid.setFromNormalAndCoplanarPoint(down, at);
+    this.scanXray.setFromNormalAndCoplanarPoint(down.clone().negate(), at);
+    const moving = s.xray > 0.001 && s.xray < 0.999;
+    this.scanBand.value.set(down.x, down.y, down.z, moving ? this.scanSolid.constant : 1e6);
+    this.xrayMat.uniforms.uOpacity.value = s.xray > 0.001 ? 0.9 : 0;
+
+    const e = s.explode;
     for (const mesh of m.meshes) {
       const sub = subsystemOf(mesh) ?? '';
-      const part = partOf(mesh);
-      const mat = mesh.material as THREE.MeshStandardMaterial;
       const off = EXPLODE[sub];
       if (off && sub !== 'TEL.DeployableApertureCover') {
         const b = mesh.userData.basePosition as THREE.Vector3;
         mesh.position.set(b.x + off[0] * e, b.y + off[1] * e, b.z + off[2] * e);
       }
-      if (mat.name === 'Detector') continue;
       // Shadow maps ignore the section plane; a cut shell must not shade the
       // interior it no longer covers.
-      mesh.castShadow = !(CUT.has(sub) && this.cut > 0.02);
-      const hl = part && part === sel ? 0.16 + 0.12 * pulse : part && part === hov ? 0.12 : 0;
-      mat.emissive.copy(this.tint);
-      mat.emissiveIntensity = hl;
+      if ((mesh.material as THREE.Material).name !== 'Detector') mesh.castShadow = !(CUT.has(sub) && s.cut > 0.02);
     }
-    for (const h of this.wfiHousing) h.visible = this.cut < 0.3;
+    for (const h of this.wfiHousing) h.visible = s.cut < 0.3;
 
     if (m.dac) {
-      const s = num('DAC_H_STOWED') / num('DAC_H_DEPLOYED');
-      m.dac.scale.y = s + (1 - s) * this.deploy.dac;
+      const st = num('DAC_H_STOWED') / num('DAC_H_DEPLOYED');
+      m.dac.scale.y = st + (1 - st) * s.deploy.dac;
       const b = m.dac.userData.basePosition as THREE.Vector3 | undefined;
       const off = EXPLODE['TEL.DeployableApertureCover'];
       if (b) m.dac.position.set(b.x + off[0] * e, b.y + off[1] * e, b.z + off[2] * e);
     }
     for (const d of m.deployables) {
       const sub = subsystemOf(d.node);
-      const which = sub === 'OSS.LowerInstrumentSunShade' ? this.deploy.liss
-        : sub === 'COMMUNICATIONS' ? this.deploy.hga : this.deploy.sass;
+      const which = sub === 'OSS.LowerInstrumentSunShade' ? s.deploy.liss
+        : sub === 'COMMUNICATIONS' ? s.deploy.hga : s.deploy.sass;
       d.node.rotation[d.axis] = d.base + (1 - which) * d.stowed;
     }
   }
@@ -811,110 +637,71 @@ export class RomanInOrbit {
   /* --------------------------------------------------------------- labels -- */
 
   /** A point in the model's frame, in the globe's. */
-  private world(p: THREE.Vector3, out = new THREE.Vector3()) {
+  toWorld(p: THREE.Vector3, out = new THREE.Vector3()) {
     return this.body.localToWorld(out.copy(p));
   }
 
-  private placeTags(o: { camera: THREE.PerspectiveCamera; w: number; h: number; inspecting: boolean; labels: { id: string; text: string; at: THREE.Vector3 }[] }) {
-    if (!o.inspecting) return;
-    const want: { id: string; text: string; at: THREE.Vector3; strong?: boolean }[] = [...o.labels];
-    const s = this.show;
-    const L = this.light!;
-    if (s === 'live') {
-      want.push({ id: 'sun', text: 'Sunlight on the array · 4 kW', at: this.world(new THREE.Vector3(-1.4, 7.2, 2.74).addScaledVector(SUN_DIR, 6)) });
-      if (this.gimbal && this.beamA > 0.5) {
-        want.push({ id: 'ka', text: `Ka-band · 500 Mb/s → ${this.station}`, at: this.beamGroup.localToWorld(new THREE.Vector3(0, 0, 14)), strong: true });
-      } else if (this.gimbal) {
-        want.push({ id: 'ka', text: 'High-gain antenna, held on Earth', at: this.feedWorld() });
-      }
-      want.push({ id: 'ap', text: 'Aperture, shaded by the visor', at: this.world(new THREE.Vector3(0, LENGTH - 0.2, 0)) });
-    } else if (s === 'light') {
-      const pts = L.stopPoints;
-      const name = (i: number) => L.stops[i]?.label ?? '';
-      // On a phone, only the two that matter: where the light lands, and the picture.
-      if (pts.length >= 10 && o.w < 600) {
-        want.push({ id: 'fp', text: 'Focal plane · 18 detectors', at: this.world(pts[9]) });
-      } else if (pts.length >= 10) {
-        want.push({ id: 'pm', text: `${name(1)} · 2.4 m`, at: this.world(pts[1]) });
-        want.push({ id: 'sm', text: name(2), at: this.world(pts[2]) });
-        want.push({ id: 'tm', text: 'Aft optics', at: this.world(pts[7]) });
-        want.push({ id: 'fp', text: 'Focal plane · 18 detectors', at: this.world(pts[9]) });
-      }
-      if (this.holo && this.holoA > 0.5) {
-        const e = this.exposure!;
-        const what = this.phase === 'readout' ? 'reading out' : this.phase === 'expose' ? `${(e.frames / 20).toFixed(1)} s in` : this.phase === 'slew' ? 'turning to the next field' : 'settling';
-        want.push({ id: 'holo', text: `Wide Field Instrument · ${what}`, at: this.world(this.holo.position.clone().add(new THREE.Vector3(0, 1.45, 0))), strong: true });
-      }
-    } else if (s === 'apart' && this.explode > 0.5) {
-      for (const id of APART_LABELS) {
-        const c = this.subCentres.get(id);
-        const off = EXPLODE[id];
-        if (!c) continue;
-        const p = c.clone();
-        if (off) p.add(new THREE.Vector3(...off).multiplyScalar(this.explode));
-        want.push({ id: `sub:${id}`, text: SUBSYSTEM[id]?.label ?? id, at: this.world(p) });
-      }
-    } else if (s === 'unfold') {
-      const step = this.state.step;
-      const at = step === 1 ? this.subCentres.get('SOLAR_ARRAY_SUN_SHIELD') : step === 2 ? this.subCentres.get('COMMUNICATIONS') : step === 3 ? this.subCentres.get('TEL.DeployableApertureCover') : null;
-      if (at) want.push({ id: 'unfold', text: DEPLOYMENTS[step].when, at: this.world(at), strong: true });
-    }
-    const sel = this.picked ?? this.hover;
-    if (sel) want.push({ id: 'part', text: partLabel(sel.part), at: this.world(sel.point), strong: true });
-
-    // Place: beside each point, pushed down past any chip already placed.
+  /**
+   * Names on the model: a small point where it is, a hairline out to the
+   * text, pushed apart so none overlap. The story fades them with `alpha`.
+   */
+  private placeTags(camera: THREE.PerspectiveCamera, w: number, h: number, labels: OrbitLabel[]) {
     const placed: { x: number; y: number; w: number; h: number }[] = [];
     const seen = new Set<string>();
-    const rows = want.map((t) => {
-      const p = this.tmp.copy(t.at).project(o.camera);
-      return { t, x: ((p.x + 1) / 2) * o.w, y: ((1 - p.y) / 2) * o.h, ok: p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1 };
+    const rows = labels.map((t) => {
+      const p = this.toWorld(t.at, this.tmp).project(camera);
+      return { t, x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h, ok: p.z < 1 && Math.abs(p.x) < 1.05 && Math.abs(p.y) < 1.05 };
     }).sort((a, b) => a.y - b.y);
     for (const r of rows) {
-      if (!r.ok) continue;
-      const tag = this.tag(r.t.id, r.t.strong);
-      if (tag.el.dataset.text !== r.t.text) { tag.el.textContent = r.t.text; tag.el.dataset.text = r.t.text; }
-      const w = tag.el.offsetWidth || 120, h = 20;
-      let x = Math.min(r.x + 26, o.w - w - 8), y = r.y - 30;
-      for (const q of placed) if (x < q.x + q.w && x + w > q.x && y < q.y + q.h + 3 && y + h > q.y - 3) y = q.y + q.h + 4;
-      placed.push({ x, y, w, h });
+      const a = r.t.alpha ?? 1;
+      if (!r.ok || a < 0.02) continue;
+      const tag = this.tag(r.t.id);
+      if (tag.text.textContent !== r.t.text) tag.text.textContent = r.t.text;
+      tag.el.classList.toggle('strong', !!r.t.strong);
+      const tw = tag.el.offsetWidth || 120, th = 18;
+      const right = r.x < w * 0.72;
+      let x = right ? r.x + 38 : r.x - 38 - tw, y = r.y - 34;
+      x = Math.max(8, Math.min(w - tw - 8, x));
+      for (const q of placed) if (x < q.x + q.w && x + tw > q.x && y < q.y + q.h + 4 && y + th > q.y - 4) y = q.y + q.h + 6;
+      placed.push({ x, y, w: tw, h: th });
       tag.el.style.translate = `${x}px ${y}px`;
+      tag.el.style.opacity = String(a);
+      tag.dot.style.translate = `${r.x - 2.5}px ${r.y - 2.5}px`;
+      tag.dot.style.opacity = String(a);
       tag.line.setAttribute('x1', String(r.x)); tag.line.setAttribute('y1', String(r.y));
-      tag.line.setAttribute('x2', String(x)); tag.line.setAttribute('y2', String(y + h / 2));
-      if (!tag.on) { tag.el.style.display = ''; tag.line.style.display = ''; tag.on = true; }
+      tag.line.setAttribute('x2', String(right ? x - 4 : x + tw + 4)); tag.line.setAttribute('y2', String(y + th / 2));
+      tag.line.style.opacity = String(a * 0.6);
+      if (!tag.on) { tag.el.style.display = ''; tag.dot.style.display = ''; tag.line.style.display = ''; tag.on = true; }
       seen.add(r.t.id);
     }
     for (const [id, tag] of this.tags) {
-      if (!seen.has(id) && tag.on) { tag.el.style.display = 'none'; tag.line.style.display = 'none'; tag.on = false; }
+      if (!seen.has(id) && tag.on) { tag.el.style.display = tag.dot.style.display = tag.line.style.display = 'none'; tag.on = false; }
     }
   }
 
-  private tag(id: string, strong = false): Tag {
+  private tag(id: string): Tag {
     let t = this.tags.get(id);
     if (t) return t;
     const el = document.createElement('div');
-    el.className = 'roman-tag' + (strong ? ' strong' : '');
-    Object.assign(el.style, {
-      position: 'absolute', left: '0', top: '0', whiteSpace: 'nowrap', font: '500 11px/18px "Overpass Mono", ui-monospace, monospace',
-      padding: '1px 7px', background: 'rgba(0,0,0,0.6)', color: strong ? 'var(--live, #44ff44)' : 'rgba(242,241,236,0.86)',
-      borderLeft: `1px solid ${strong ? 'var(--live, #44ff44)' : 'rgba(242,241,236,0.4)'}`, display: 'none',
-    } satisfies Partial<CSSStyleDeclaration>);
+    el.className = 'roman-tag';
+    const text = document.createElement('span');
+    el.append(text);
+    const dot = document.createElement('span');
+    dot.className = 'roman-tag-dot';
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('stroke', strong ? 'var(--live, #44ff44)' : 'rgba(242,241,236,0.38)');
+    line.setAttribute('stroke', 'rgba(242,241,236,0.9)');
     line.setAttribute('stroke-width', '1');
+    for (const e of [el, dot]) e.style.display = 'none';
     line.style.display = 'none';
     this.svg.append(line);
-    this.tagHost.append(el);
-    t = { el, line, on: false };
+    this.tagHost.append(el, dot);
+    t = { el, text, dot, line, on: false };
     this.tags.set(id, t);
     return t;
   }
 
   dispose() {
-    for (const f of this.cleanup) f();
     this.light?.dispose();
-    this.leaderMat.dispose();
-    this.ghostMat.dispose();
-    for (const g of this.ghosts.children) (g as THREE.LineSegments).geometry.dispose();
     this.sunlight.dispose();
     this.downlink?.dispose();
     this.exposureTex?.dispose();

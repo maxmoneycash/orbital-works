@@ -18,7 +18,7 @@
   import PolarPlot from './PolarPlot.svelte';
   import DopplerWindow from './DopplerWindow.svelte';
   import AnatomyWindow from './AnatomyWindow.svelte';
-  import RomanHud from './roman/RomanHud.svelte';
+  import RomanStory from './roman/RomanStory.svelte';
   import DesignerWindow from './DesignerWindow.svelte';
   import PhasedArrayWindow from './PhasedArrayWindow.svelte';
   import WaveformWindow from './WaveformWindow.svelte';
@@ -79,7 +79,7 @@
   <FeedbackWindow />
   <SkyReticle />
   <SkyRotator />
-  <RomanHud />
+  <RomanStory />
 </div>
 
 <style>

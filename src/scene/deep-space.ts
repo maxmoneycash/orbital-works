@@ -18,10 +18,29 @@ import { DRAW_SCALE } from '../constants';
 import { geodeticToEci } from '../astro/geodetic';
 import { loadDeepSpace, positionAt, span, l2At, C_KM_S, type DeepSpace, type BodyName } from '../roman/ephem';
 import { STATIONS, MIN_ELEVATION, type Station } from '../roman/sim';
-import { RomanInOrbit } from './roman-orbit';
+import { RomanInOrbit, REST, type OrbitState } from './roman-orbit';
 
 /** Within this many draw units of Roman, the observatory itself is drawn. */
 export const SHOW_MODEL_WITHIN = 6;
+
+/** What deep space shows this frame: the tracker's full view, or a moment of the story. */
+export interface DeepView {
+  /** Roman's flown track drawn up to this fraction of the way from launch to now, with Roman at its head. */
+  trackTo: number;
+  /** Opacity of every track, 0 … 1. */
+  tracks: number;
+  /** The Ka-band line down to the station, 0 … 1. */
+  beam: number;
+  /** Which far labels may show. */
+  labels: ReadonlySet<string>;
+  /** The observatory's state, and whether its names show. */
+  model: OrbitState;
+  modelTags: boolean;
+}
+
+export const TRACKER_VIEW: DeepView = {
+  trackTo: 1, tracks: 1, beam: 1, labels: new Set(['roman', 'jwst', 'euclid', 'l2', 'moon', 'beam']), model: REST, modelTags: false,
+};
 
 const OBLIQUITY = (23.4393 * Math.PI) / 180;
 /** The ecliptic pole in ICRF equatorial coordinates. */
@@ -85,6 +104,7 @@ export class DeepSpaceLayer {
   private romanTrack: Line2 | null = null;
   private romanPast: Line2 | null = null;
   private romanCum: number[] = [];
+  private romanPts: number[] = [];
   private romanTimes: number[] = [];
   private tracks: Line2[] = [];
   private moonRing: Line2 | null = null;
@@ -238,6 +258,7 @@ export class DeepSpaceLayer {
     const rp = this.synodic('roman', this.romanTimes, now);
     const future = this.mat(0x44ff44, 1.2, 0.45, true);
     future.dashSize = 1.6; future.gapSize = 1.6;
+    this.romanPts = rp;
     this.romanTrack = this.line(rp, future);
     this.romanPast = this.line(rp, this.mat(0x44ff44, 2.2, 0.95, true));
     this.romanCum = [0];
@@ -292,12 +313,42 @@ export class DeepSpaceLayer {
     return this.romanCum[lo] + (this.romanCum[hi] - this.romanCum[lo]) * u;
   }
 
+  /** Roman on its drawn track at `t`, in the rotating frame the track is drawn in. */
+  private onTrack(t: number, out = new THREE.Vector3()) {
+    const ts = this.romanTimes, p = this.romanPts;
+    if (!ts.length) return out.set(0, 0, 0);
+    if (t <= ts[0]) return out.fromArray(p, 0);
+    if (t >= ts[ts.length - 1]) return out.fromArray(p, (ts.length - 1) * 3);
+    let lo = 0, hi = ts.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (ts[mid] <= t) lo = mid; else hi = mid; }
+    const u = (t - ts[lo]) / (ts[hi] - ts[lo]);
+    return out.fromArray(p, lo * 3).lerp(this.tmp.fromArray(p, hi * 3), u);
+  }
+
+  /** Roman on its drawn track `frac` of the way from launch to now, in the globe's frame. */
+  trackHead(frac: number, out = new THREE.Vector3()) {
+    if (!this.ds) return out.set(0, 0, 0);
+    const [r0, r1] = span(this.ds, 'roman');
+    const now = Math.min(Math.max(this.lastNow, r0), r1);
+    return this.onTrack(r0 + (now - r0) * THREE.MathUtils.clamp(frac, 0, 1), out);
+  }
+
+  /** When Roman first reached the Moon's mean distance, Unix ms, or null. */
+  get moonCrossing(): number | null {
+    if (!this.ds) return null;
+    const [r0, r1] = span(this.ds, 'roman');
+    for (let t = r0; t <= r1; t += 600_000) {
+      const p = positionAt(this.ds, 'roman', t);
+      if (p && p.length() >= 384_400) return t;
+    }
+    return null;
+  }
+
   /**
    * `now` Unix ms (the app's clock), `gmstRad` Earth's rotation as the globe
-   * draws it, `w`/`h` the canvas size in CSS px; `inspecting` when the camera
-   * is locked on Roman up close, which trades the far labels for the model's.
+   * draws it, `w`/`h` the canvas size in CSS px; `view` what to show.
    */
-  update(now: number, gmstRad: number, dt: number, w: number, h: number, inspecting = false) {
+  update(now: number, gmstRad: number, dt: number, w: number, h: number, view: DeepView = TRACKER_VIEW) {
     const ds = this.ds;
     if (!ds) return;
     this.lastNow = now;
@@ -315,9 +366,12 @@ export class DeepSpaceLayer {
     const tt = Math.min(Math.max(now, r0), r1);
     const rk = positionAt(ds, 'roman', tt)!;
     const draw = toRender(rk);
-    const past = this.pastLength(now);
+    // The journey so far, drawn up to a moment between launch and now.
+    const journey = view.trackTo < 0.999;
+    const tHead = r0 + (tt - r0) * THREE.MathUtils.clamp(view.trackTo, 0, 1);
+    const head = journey ? this.onTrack(tHead) : draw;
     const pm = this.romanPast!.material as LineMaterial;
-    pm.dashSize = Math.max(1e-4, past);
+    pm.dashSize = Math.max(1e-4, this.pastLength(journey ? tHead : now));
     pm.gapSize = 1e9;
 
     // Which station sees it, from the same Earth rotation the globe uses.
@@ -343,7 +397,7 @@ export class DeepSpaceLayer {
       m.visible = !!v;
       if (v) m.position.copy(v);
     };
-    place('roman', draw);
+    place('roman', head);
     this.pulse.visible = true;
     const near = this.camera.position.distanceTo(draw) < SHOW_MODEL_WITHIN;
     this.modelShown = near && !!this.orbit.model;
@@ -351,13 +405,13 @@ export class DeepSpaceLayer {
     const sun = positionAt(ds, 'sun', now);
     this.orbit.update({
       draw, toSun: sun ? toRender(sun.sub(rk)).normalize() : new THREE.Vector3(1, 0, 0),
-      toEarth: this.tmp.copy(draw).negate().normalize().clone(), station: contact?.st.short ?? null,
-      camera: this.camera, dt, w, h, inspecting: inspecting && this.modelShown, labels: [],
+      toEarth: this.tmp.copy(draw).negate().normalize().clone(),
+      camera: this.camera, dt, w, h, showTags: view.modelTags && this.modelShown, state: view.model,
     });
-    this.pulse.position.copy(draw);
+    this.pulse.position.copy(head);
     const ph = (this.clock % 2.4) / 2.4;
     this.pulse.scale.setScalar(0.02 + ph * 0.05);
-    this.pulse.material.opacity = (this.modelShown ? 0.25 : 0.8) * (1 - ph);
+    this.pulse.material.opacity = (this.modelShown ? 0 : 0.8) * (1 - ph);
     this.markers.get('roman')!.visible = !this.modelShown;
     const jw = positionAt(ds, 'jwst', now), eu = positionAt(ds, 'euclid', now);
     place('jwst', jw && toRender(jw));
@@ -365,7 +419,7 @@ export class DeepSpaceLayer {
     place('l2', l2 && toRender(l2));
 
     // The downlink: dashes running from Roman down to the station.
-    if (contact) {
+    if (contact && view.beam > 0.01) {
       const e = geodeticToEci(contact.st.lat, contact.st.lon, 0, gmstRad);
       const gs = toRender(sv.set(e.x, e.y, e.z));
       // From the dish's feed when the observatory is drawn, so the stream
@@ -374,17 +428,28 @@ export class DeepSpaceLayer {
       (this.beam.geometry as LineGeometry).setPositions([from.x, from.y, from.z, gs.x, gs.y, gs.z]);
       this.beam.computeLineDistances();
       this.beamMat.dashOffset -= dt * 60;
+      this.beamMat.opacity = 0.95 * view.beam;
       this.beam.visible = true;
       this.labels.get('beam')!.at.copy(gs);
     } else {
       this.beam.visible = false;
     }
 
+    // Tracks, as strong as the view wants them.
+    const k = view.tracks;
+    const tf = this.romanTrack?.material as LineMaterial | undefined, tp = this.romanPast?.material as LineMaterial | undefined;
+    if (tf) tf.opacity = 0.45 * k;
+    if (tp) tp.opacity = 0.95 * k;
+    for (const t of this.tracks) (t.material as LineMaterial).opacity = 0.38 * k;
+    if (this.moonRing) (this.moonRing.material as LineMaterial).opacity = 0.22 * k;
+
     // Labels.
     const L = this.labels;
-    L.get('roman')!.at.copy(draw);
-    (L.get('roman')!.el.lastElementChild as HTMLElement).textContent =
-      ` · ${Math.round(rk.length()).toLocaleString('en-US')} km${now > r1 ? ' (predict ends)' : ''}`;
+    L.get('roman')!.at.copy(head);
+    const hk = journey ? positionAt(ds, 'roman', tHead)!.length() : rk.length();
+    (L.get('roman')!.el.lastElementChild as HTMLElement).textContent = journey
+      ? ` · day ${Math.max(0, Math.floor((tHead - r0) / DAY))} · ${Math.round(hk).toLocaleString('en-US')} km`
+      : ` · ${Math.round(hk).toLocaleString('en-US')} km${now > r1 ? ' (predict ends)' : ''}`;
     if (jw) L.get('jwst')!.at.copy(toRender(jw));
     if (eu) L.get('euclid')!.at.copy(toRender(eu));
     if (l2) L.get('l2')!.at.copy(toRender(l2));
@@ -392,21 +457,14 @@ export class DeepSpaceLayer {
     if (mRing) L.get('moon')!.at.copy(toRender(mRing));
     (L.get('beam')!.el.firstElementChild as HTMLElement).textContent = contact ? `Ka-band downlink → ${contact.st.short}` : '';
     (L.get('earth')!.el.lastElementChild as HTMLElement).textContent = ` · ${Math.round(rk.length()).toLocaleString('en-US')} km away`;
-    const up = inspecting && this.modelShown;
-    // Up close the tracks run straight through the model: let them recede.
-    const tf = this.romanTrack?.material as LineMaterial | undefined, tp = this.romanPast?.material as LineMaterial | undefined;
-    if (tf) tf.opacity = up ? 0.12 : 0.45;
-    if (tp) tp.opacity = up ? 0.22 : 0.95;
-    for (const t of this.tracks) (t.material as LineMaterial).opacity = up ? 0.08 : 0.38;
-    if (this.moonRing) (this.moonRing.material as LineMaterial).opacity = up ? 0.06 : 0.22;
-    const show = new Map<string, boolean>([
-      ['roman', !up], ['jwst', !!jw && !up], ['euclid', !!eu && !up], ['l2', !!l2 && !up], ['moon', !!mRing && !up],
-      ['beam', !!contact], ['earth', up],
+    const has = new Map<string, boolean>([
+      ['roman', !this.modelShown], ['jwst', !!jw], ['euclid', !!eu], ['l2', !!l2], ['moon', !!mRing],
+      ['beam', !!contact && view.beam > 0.5], ['earth', true],
     ]);
     // Far labels only once the camera is out far enough to make sense of them.
     const far = this.camera.position.length() > 60;
     for (const [id, lb] of L) {
-      const want = show.get(id)! && (far || id === 'roman' || id === 'beam');
+      const want = view.labels.has(id) && has.get(id)! && (far || id === 'roman' || id === 'beam');
       const p = this.tmp.copy(lb.at).project(this.camera);
       const on = want && p.z < 1 && p.x > -1.05 && p.x < 1.05 && p.y > -1.05 && p.y < 1.05;
       if (on !== lb.on) { lb.el.style.display = on ? '' : 'none'; lb.on = on; }

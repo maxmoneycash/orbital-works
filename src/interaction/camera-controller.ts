@@ -122,6 +122,12 @@ export class CameraController {
     this._targetCamAngleY = y;
   }
 
+  /** Snap both orbit angles, current and target (no lerp). */
+  snapAngles(x: number, y: number): void {
+    this._camAngleX = this._targetCamAngleX = x;
+    this._camAngleY = this._targetCamAngleY = y;
+  }
+
   /** Set horizontal angle to an absolute value (both current and target). Used during orbit scrub. */
   setAngleX(value: number): void {
     this._targetCamAngleX = value;

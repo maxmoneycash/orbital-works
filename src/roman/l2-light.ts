@@ -18,7 +18,7 @@ export function makeL2Environment(renderer: THREE.WebGLRenderer): THREE.Texture 
   const sky = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
     vertexShader: 'varying vec3 vN; void main(){ vN = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: 'varying vec3 vN; void main(){ float h = vN.y * 0.5 + 0.5; gl_FragColor = vec4(mix(vec3(0.004,0.005,0.008), vec3(0.03,0.034,0.042), h), 1.0); }',
+    fragmentShader: 'varying vec3 vN; void main(){ float h = vN.y * 0.5 + 0.5; gl_FragColor = vec4(mix(vec3(0.012,0.013,0.018), vec3(0.07,0.078,0.095), h), 1.0); }',
   }));
   env.add(sky);
   const card = (w: number, h: number, color: number, gain: number, pos: THREE.Vector3) => {
@@ -28,9 +28,12 @@ export function makeL2Environment(renderer: THREE.WebGLRenderer): THREE.Texture 
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  card(26, 18, 0xfff1dc, 1.6, SUN_DIR.clone().multiplyScalar(38).add(new THREE.Vector3(0, 6, 0)));
-  card(30, 10, 0x9fb4d6, 0.35, SUN_DIR.clone().multiplyScalar(-38));
-  card(40, 6, 0xffffff, 0.5, new THREE.Vector3(0, 40, 0));
+  // Broad soft cards: silver blankets and metal read by what they reflect,
+  // and black space alone would leave them black.
+  card(34, 24, 0xfff1dc, 3.2, SUN_DIR.clone().multiplyScalar(38).add(new THREE.Vector3(0, 6, 0)));
+  card(36, 14, 0x9fb4d6, 0.9, SUN_DIR.clone().multiplyScalar(-38));
+  card(46, 8, 0xffffff, 1.1, new THREE.Vector3(0, 40, 0));
+  card(20, 30, 0xc8d6ee, 0.6, new THREE.Vector3(-38, 4, 8));
   const sun = new THREE.Mesh(new THREE.SphereGeometry(2.6, 16, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
   (sun.material as THREE.MeshBasicMaterial).color.setScalar(40);
   sun.position.copy(SUN_DIR).multiplyScalar(44);

@@ -1,18 +1,18 @@
 import type { Satellite, SelectedSatInfo } from '../types';
-import type { RomanShowState } from '../scene/roman-orbit';
 import type { SatellitePass } from '../passes/pass-types';
 import { ViewMode } from '../types';
 import { MOBILE_BREAKPOINT } from '../constants';
 
-export type RomanShow = RomanShowState['show'];
-export interface RomanView extends RomanShowState {
+/** Roman's live numbers for the story's words (set by the app a few times a second). */
+export interface RomanView {
   distKm: number;
   lightSec: number;
   l2Km: number | null;
   speedKmS: number;
   extrapolated: boolean;
   station: string | null;
-  replaying: boolean;
+  /** When Roman first reached the Moon's distance, Unix ms. */
+  moonCrossing: number | null;
 }
 
 export class SceneLabel {
@@ -147,21 +147,24 @@ class UIStore {
   anatomyOpen = $state(false);
   anatomyFocus = $state(0);
   /**
-   * Fly the globe's camera out to Roman in deep space (set by the app): all
-   * the way in to the observatory by default; `wide` stops with Earth and
-   * Roman both in frame, and `at` frames Roman where it will be then (Unix ms).
+   * The Roman story: a scroll from Earth out to the observatory and through
+   * it, over the 3D scene. On by default; the app turns it off for share links.
    */
-  onShowRoman: ((opts?: { at?: number; wide?: boolean }) => void) | null = null;
-  /** Play one of the observatory's shows on the model (set by the app). */
-  onRomanShow: ((show: RomanShow) => void) | null = null;
-  /** Replay the flight from launch on the globe, then fly back in (set by the app). */
-  onReplayRoman: (() => void) | null = null;
-  /** Leave Roman for Earth (set by the app). */
-  onLeaveRoman: (() => void) | null = null;
-  /** While the camera is up close to Roman: what it is doing, for the HUD (set by the app). */
+  romanStoryActive = $state(false);
+  /** Where the story starts when it opens, in screens of scroll. */
+  romanStoryStart = 0;
+  /** How far the story has been scrolled, in screens (set by the story's page each frame). */
+  romanStoryT = 0;
+  /** Which stop of the light path the light has reached (set by the app). */
+  romanStoryStop = $state(0);
+  /** Open the story, at `t` screens in (set by the app). */
+  onEnterStory: ((t?: number) => void) | null = null;
+  /** Leave the story for the tracker: skipped, or scrolled past its end (set by the app). */
+  onExitStory: ((why: 'skip' | 'end') => void) | null = null;
+  /** A drag on the story's page: pixels moved, and whether it is still held (set by the app). */
+  onStoryDrag: ((dx: number, dy: number, held: boolean) => void) | null = null;
+  /** Roman's live numbers, while the story is open (set by the app). */
   romanView = $state<RomanView | null>(null);
-  /** The camera is on its way out to Roman (set by the app). */
-  romanFlying = $state(false);
   /** How many catalogued objects currently sit in each licensed Starlink shell. */
   shellCensus = $state<Record<string, number>>({});
   constellationOpen = $state(false);

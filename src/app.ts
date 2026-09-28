@@ -9,7 +9,8 @@ import { Earth } from './scene/earth';
 import { CloudLayer } from './scene/cloud-layer';
 import { MoonScene } from './scene/moon-scene';
 import { SunScene } from './scene/sun-scene';
-import { DeepSpaceLayer } from './scene/deep-space';
+import { DeepSpaceLayer, TRACKER_VIEW } from './scene/deep-space';
+import { RomanStory } from './scene/roman-story';
 import { SatelliteManager } from './scene/satellite-manager';
 import { OrbitRenderer } from './scene/orbit-renderer';
 import { satColorGl } from './constants';
@@ -76,8 +77,11 @@ export class App {
   private prevLock = TargetLock.EARTH;
   private liveCssClock = 0;
   private romanViewClock = 0;
-  /** A replay of the flight from launch in progress. */
-  private romanReplaying = false;
+  /** The scroll story: its camera and states, and the last pose it set. */
+  private story!: RomanStory;
+  private storyPose: { target: THREE.Vector3; dist: number; dir: THREE.Vector3 } | null = null;
+  private bloomDefault = -1;
+  private romanMoonCrossing: number | null = null;
   /**
    * Where the Roman lock looks: far out, between Earth and Roman so both are
    * in frame; close in, Roman itself.
@@ -90,11 +94,7 @@ export class App {
   private _romanLook = new THREE.Vector3();
   /** A flight out to Roman in progress: look-at glides from Earth to Roman, distance eases out. */
   private romanFlight: { t: number; dur: number; from: THREE.Vector3; d0: number; d1: number; bump: number } | null = null;
-  /** Close enough in, locked on Roman and not flying: the model's own view. */
-  private get romanInspecting() {
-    return this.activeLock === TargetLock.ROMAN && !this.romanFlight && !!this.deepSpace?.roman
-      && this.camera.distance < 3 && this.viewMode === ViewMode.VIEW_3D;
-  }
+
   private satManager!: SatelliteManager;
   private orbitRenderer!: OrbitRenderer;
   private footprintRenderer!: FootprintRenderer;
@@ -516,15 +516,11 @@ export class App {
     // Deep space: Roman's trajectory to L2, its neighbours there, its downlink.
     this.deepSpace = new DeepSpaceLayer(this.camera3d, overlay, this.renderer);
     this.scene3d.add(this.deepSpace.group);
-    this.deepSpace.onPickRoman = () => uiStore.onShowRoman?.();
+    this.deepSpace.onPickRoman = () => uiStore.onEnterStory?.(3.4);
+    this.story = new RomanStory(this.deepSpace);
     this.deepSpace.load().then(() => {
-      // A first visit on a desktop flies out to Roman once, a moment after
-      // the globe appears; after that the camera is the visitor's.
-      try {
-        if (localStorage.getItem('orbital_roman_intro') || window.innerWidth < 900 || location.search.includes('d=')) return;
-        localStorage.setItem('orbital_roman_intro', '1');
-        setTimeout(() => uiStore.onShowRoman?.(), 2500);
-      } catch { /* storage disabled: no intro */ }
+      // The moon crossing for the story's words, once the ephemeris is in.
+      this.romanMoonCrossing = this.deepSpace.moonCrossing;
     }).catch((e) => console.warn('[deep-space] ephemeris failed to load', e));
 
     // Geographic overlays (country outlines + lat/lon grid)
@@ -966,71 +962,56 @@ export class App {
 
     // Sky view toggle
     uiStore.onToggleSkyView = () => this.toggleSkyView();
-    // Out to Roman. By default all the way in, to fly around the observatory:
-    // the camera pulls back until the whole path to L2 is in view, then dives
-    // in to Roman, lit side on. `wide` (a replay) stops where Earth and Roman
-    // are both in frame; `at` frames Roman where it will be then.
-    uiStore.onShowRoman = (opts) => {
-      const r = this.deepSpace.roman;
-      if (!r) return;
-      const aim = (opts?.at !== undefined ? this.deepSpace.romanDrawAt(opts.at) : null) ?? r.draw;
+    // The Roman story. It opens on arrival (not on a share link) and hands
+    // the camera back where it leaves it.
+    uiStore.onEnterStory = (t = 0) => {
+      if (uiStore.romanStoryActive) return;
       if (this.lockedSat) this.exitSatLock();
-      if (this.orreryCtrl.isOrreryMode) return;
       if (this.viewMode === ViewMode.VIEW_SKY) this.exitSkyView();
       if (this.viewMode === ViewMode.VIEW_2D) { this.viewMode = ViewMode.VIEW_3D; uiStore.viewMode = ViewMode.VIEW_3D; }
-      // Convert to Roman's inertial frame here, so the angles set below stand.
-      if (this.activeLock !== TargetLock.ROMAN && this.activeLock !== TargetLock.PLANET && this.activeLock !== TargetLock.SAT) {
-        this.camera.setAngleX(this.camera.angleX + (epochToGmst(timeStore.epoch) + this.cfg.earthRotationOffset) * DEG2RAD);
-      }
-      this.activeLock = this.prevLock = TargetLock.ROMAN;
-      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const d0 = this.camera.distance;
-      if (opts?.wide) {
-        // Wide enough to hold Earth and Roman side by side; further on a tall screen.
-        const d1 = aim.length() * 2.1 * Math.max(1, 1.2 / (window.innerWidth / window.innerHeight));
-        this.romanFlight = { t: 0, dur: reduce ? 0.6 : 4.2, from: this.camera.target3d.clone(), d0, d1, bump: 0 };
-        // Side-on to the Earth–Roman line and a little above it.
-        this.camera.setTargetAngles(Math.atan2(aim.x, aim.z) + Math.PI / 2, 0.95);
-        return;
-      }
-      const d1 = uiStore.isMobile ? 0.85 : 0.62;
-      const mid = (Math.log(d0) + Math.log(d1)) / 2;
-      const bump = reduce ? 0 : Math.max(0, Math.log(aim.length() * 1.15) - mid);
-      this.romanFlight = { t: 0, dur: reduce ? 0.8 : 7, from: this.camera.target3d.clone(), d0, d1, bump };
-      // Three-quarters on from the sun side, a little above, so the shield
-      // catches the light at a slant and the barrel shows its length.
-      const v = this.deepSpace.orbit.viewDir(this.deepSpace.sunDirAt(aim));
-      this.camera.setTargetAngles(Math.atan2(v.x, v.z), Math.asin(THREE.MathUtils.clamp(v.y, -1, 1)));
-      this.deepSpace.orbit.setShow('live');
+      this.romanFlight = null;
+      uiStore.romanStoryStart = t;
+      uiStore.romanStoryActive = true;
     };
-    uiStore.onRomanShow = (show) => {
-      this.deepSpace.orbit.setShow(show);
-      if (this.activeLock === TargetLock.ROMAN && !this.romanFlight) {
-        const base = uiStore.isMobile ? 1.35 : 1;
-        this.camera.setTargetDistance(base * (show === 'apart' ? 1.05 : show === 'light' ? 0.5 : 0.62));
+    uiStore.onExitStory = (why) => {
+      if (!uiStore.romanStoryActive) return;
+      uiStore.romanStoryActive = false;
+      uiStore.romanView = null;
+      if (this.bloomDefault >= 0) this.postProcessing.bloomStrength = this.bloomDefault;
+      this.renderer.toneMappingExposure = 1.0;
+      this.camera.setViewOffsetX(0);
+      const p = this.storyPose;
+      if (!p) return;
+      const { x, y } = RomanStory.anglesOf(p.dir);
+      const earthRot = (epochToGmst(timeStore.epoch) + this.cfg.earthRotationOffset) * DEG2RAD;
+      this.camera.snapTarget3d(p.target);
+      this.camera.snapDistance(p.dist);
+      if (uiStore.romanStoryT > 3.3) {
+        // With Roman: hold the camera on it, in its inertial frame; at the
+        // story's end, head home to the tracker.
+        this.activeLock = this.prevLock = TargetLock.ROMAN;
+        this.camera.snapAngles(x, y);
+        if (why === 'end') leaveRoman();
+      } else {
+        // Still by Earth: the Earth lock turns with the globe.
+        this.activeLock = this.prevLock = TargetLock.EARTH;
+        this.camera.snapAngles(x - earthRot, y);
       }
     };
-    // The flight so far: out wide, the clock back to launch, then a warp to
-    // the present while the track draws itself out toward L2; then back in.
-    uiStore.onReplayRoman = () => {
-      const start = this.deepSpace.romanStart;
-      const now = epochToUnix(timeStore.epoch) * 1000;
-      if (start === null || now <= start + 3_600_000 || this.romanReplaying) return;
-      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      this.romanReplaying = true;
-      uiStore.onShowRoman?.({ at: now, wide: true });
-      timeStore.epoch = unixToEpoch(start / 1000);
-      setTimeout(() => {
-        timeStore.warpToEpoch(unixToEpoch(now / 1000), reduce ? 1 : 22);
-        setTimeout(() => { this.romanReplaying = false; uiStore.onShowRoman?.(); }, reduce ? 1500 : 23_500);
-      }, reduce ? 0 : 2200);
+    uiStore.onStoryDrag = (dx, dy, held) => {
+      this.story.dragging = held;
+      this.story.yaw -= dx * 0.005;
+      this.story.pitch = THREE.MathUtils.clamp(this.story.pitch + dy * 0.004, -0.6, 0.6);
     };
-    uiStore.onLeaveRoman = () => {
-      this.deepSpace.orbit.setShow('live');
+    const leaveRoman = () => {
       this.romanFlight = null;
       this.activeLock = TargetLock.EARTH;
       this.camera.setTargetDistance(12);
     };
+    try {
+      const q = new URLSearchParams(location.search);
+      if (!q.get('d') && q.get('story') !== '0') uiStore.onEnterStory(0);
+    } catch { /* no story without a location */ }
     uiStore.onResetCamera = () => { this.camera.resetView(); if (this.lockedSat) this.exitSatLock(); else this.activeLock = TargetLock.NONE; };
 
     // Command palette: get satellite list for search
@@ -1619,9 +1600,11 @@ export class App {
       const sheetOffset = uiStore.activeMobileSheet
         ? (window.innerHeight * 0.35 + 66) / 2
         : 0;
-      // With Roman, the HUD holds the lower part of the screen: centre the
-      // observatory in the space above it.
-      this.camera.setViewOffsetY(uiStore.romanView || uiStore.romanFlying ? window.innerHeight * 0.17 : sheetOffset);
+      // In the story the words sit low: frame the scene above them.
+      this.camera.setViewOffsetY(uiStore.romanStoryActive ? window.innerHeight * 0.13 : sheetOffset);
+    } else {
+      // On a wide screen the words sit left: frame the scene right of centre.
+      this.camera.setViewOffsetX(uiStore.romanStoryActive ? -window.innerWidth * 0.11 : 0);
     }
 
     // Update sky-view camera origin + ground disc + grid
@@ -1650,10 +1633,15 @@ export class App {
     // Close to Roman the model is a fraction of a draw unit across: bring the
     // near plane in with the camera, and put it back on the way out.
     if (!this.camera.isSkyView) {
-      const near = this.activeLock === TargetLock.ROMAN ? THREE.MathUtils.clamp(this.camera.distance * 0.02, 0.0005, 0.01) : 0.01;
+      const d = uiStore.romanStoryActive ? this.storyPose?.dist ?? 10 : this.activeLock === TargetLock.ROMAN ? this.camera.distance : 10;
+      const near = THREE.MathUtils.clamp(d * 0.02, 0.0005, 0.01);
       if (Math.abs(this.camera3d.near - near) > near * 0.05) { this.camera3d.near = near; this.camera3d.updateProjectionMatrix(); }
     }
     this.camera.updateFrame(dt, earthRotRad, isOrreryOrPlanet);
+    // The story's camera, over the controller's.
+    if (uiStore.romanStoryActive && this.viewMode === ViewMode.VIEW_3D) {
+      this.storyPose = this.story.apply(this.camera3d, uiStore.romanStoryT, dt) ?? this.storyPose;
+    }
     this.camera3d.updateMatrixWorld();
 
     // Project sky grid labels + HUD markers after camera update
@@ -1790,23 +1778,31 @@ export class App {
       const deepOn = !isSkyView && !this.orreryCtrl.isOrreryMode && this.activeLock !== TargetLock.PLANET;
       this.deepSpace.setVisible(deepOn);
       if (deepOn) {
-        const inspecting = this.romanInspecting;
-        this.deepSpace.update(epochToUnix(epoch) * 1000, gmstDeg * DEG2RAD, dt, window.innerWidth, window.innerHeight, inspecting);
+        const storyOn = uiStore.romanStoryActive;
+        const t = uiStore.romanStoryT;
+        this.deepSpace.update(epochToUnix(epoch) * 1000, gmstDeg * DEG2RAD, dt, window.innerWidth, window.innerHeight,
+          storyOn ? this.story.view(t) : TRACKER_VIEW);
         if ((this.liveCssClock += dt) > 1) {
           this.liveCssClock = 0;
           const css = getComputedStyle(document.documentElement).getPropertyValue('--live').trim();
           if (css) this.deepSpace.setLive(css);
         }
-        const r = this.deepSpace.roman;
-        const flying = this.activeLock === TargetLock.ROMAN && !!this.romanFlight;
-        if (uiStore.romanFlying !== flying) uiStore.romanFlying = flying;
-        if ((this.romanViewClock += dt) > 0.25) {
-          this.romanViewClock = 0;
-          uiStore.romanView = r && inspecting ? {
-            ...this.deepSpace.orbit.state,
-            distKm: r.distKm, lightSec: r.lightSec, l2Km: r.l2Km, speedKmS: r.speedKmS, extrapolated: r.extrapolated,
-            station: r.contact?.st.short ?? null, replaying: this.romanReplaying,
-          } : null;
+        if (storyOn) {
+          // Close to the observatory, bloom gentler: silver would bloom out.
+          if (this.bloomDefault < 0) this.bloomDefault = this.postProcessing.bloomStrength;
+          this.postProcessing.bloomStrength = t > 3.3 ? this.bloomDefault * 0.45 : this.bloomDefault;
+          // Out at the observatory there is no Earth in shot: expose for the hardware.
+          this.renderer.toneMappingExposure = t > 3.3 ? 1.3 : 1.0;
+          const i = this.story.stopIndex(t);
+          if (uiStore.romanStoryStop !== i) uiStore.romanStoryStop = i;
+          const r = this.deepSpace.roman;
+          if (r && (this.romanViewClock += dt) > 0.25) {
+            this.romanViewClock = 0;
+            uiStore.romanView = {
+              distKm: r.distKm, lightSec: r.lightSec, l2Km: r.l2Km, speedKmS: r.speedKmS, extrapolated: r.extrapolated,
+              station: r.contact?.st.short ?? null, moonCrossing: this.romanMoonCrossing,
+            };
+          }
         }
       } else if (uiStore.romanView) {
         uiStore.romanView = null;
@@ -1833,7 +1829,8 @@ export class App {
         timeMultiplier: this.timeSystem.timeMultiplier,
       });
 
-      this.satManager.setVisible(earthMode || isSkyView);
+      // The story keeps the sky clear for Roman.
+      this.satManager.setVisible((earthMode || isSkyView) && !uiStore.romanStoryActive);
       uiStore.earthTogglesVisible = earthMode && !isSkyView;
       uiStore.satTogglesVisible = earthMode || isSkyView;
       // Hide 2D marker labels in 3D mode
@@ -1933,7 +1930,8 @@ export class App {
             this.beamConeRenderer.hide();
           }
 
-          this.markerManager.update(gmstDeg, this.cfg.earthRotationOffset, this.camera3d, this.camera.distance);
+          if (uiStore.romanStoryActive) this.markerManager.hide();
+          else this.markerManager.update(gmstDeg, this.cfg.earthRotationOffset, this.camera3d, this.camera.distance);
         } else {
           this.markerManager.hide();
         }

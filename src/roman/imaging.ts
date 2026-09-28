@@ -208,6 +208,38 @@ export class Exposure {
     return s / Math.sqrt(s + this.frames * this.readNoise * this.readNoise || 1);
   }
 
+  /**
+   * The picture after `frames` frames, without integrating them: the signal
+   * plus the noise that many frames leave, from a fixed noise pattern that
+   * shrinks as 1/√frames. Any frame count draws in the same time, so the
+   * image can form and un-form as fast as a scroll moves.
+   */
+  drawAt(frames: number, read = 0) {
+    const { rate, mask, tileOf, tiles, W, H, photons, readNoise } = this;
+    const N = NORMALS, M = N.length - 1;
+    const out = this.img.data;
+    const f = Math.max(0, frames), k = f > 0 ? 1 / Math.sqrt(f) : 0;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = y * W + x, o = i * 4;
+        if (!mask[i]) { out[o] = 5; out[o + 1] = 6; out[o + 2] = 8; out[o + 3] = 255; continue; }
+        const tl = tiles[tileOf[i]];
+        const row = read > 0 ? tl.minY + (tl.maxY - tl.minY + 1) * read : -1;
+        for (let ch = 0; ch < 3; ch++) {
+          const lam = rate[i * 3 + ch] * photons + 0.02;
+          const j = (i * 5 + ch * 7919) & M;
+          const mean = lam + (Math.sqrt(lam) * N[j] + readNoise * N[(j + 3) & M]) * k;
+          const v = f > 0 ? Math.max(0, mean / photons) : 0;
+          out[o + ch] = Math.min(255, (Math.asinh(v * 9) / Math.asinh(9)) * 255);
+        }
+        if (read > 0 && Math.abs(y - row) < 1) { out[o] = 120; out[o + 1] = 255; out[o + 2] = 140; }
+        else if (read > 0 && y >= row) { out[o] *= 0.55; out[o + 1] *= 0.55; out[o + 2] *= 0.55; }
+        out[o + 3] = 255;
+      }
+    }
+    this.g.putImageData(this.img, 0, 0);
+  }
+
   draw() {
     const { acc, mask, tileOf, tiles, W, H } = this;
     const out = this.img.data;

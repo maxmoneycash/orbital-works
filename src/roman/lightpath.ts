@@ -102,15 +102,8 @@ export class LightPath {
         line.frustumCulled = false;
         into.add(line);
       }
-      // The trail is revealed from the detectors back out, so its dash
-      // distances count from this ray's own focal-plane end: every ray's
-      // front then sits at the same stop. The photons keep the forward
-      // distances and stream the way the light actually travels.
-      const d = (geo.attributes.instanceDistanceStart as THREE.InterleavedBufferAttribute).data;
-      const arr = d.array as Float32Array;
-      const total = arr[arr.length - 1];
-      for (let i = 0; i < arr.length; i++) arr[i] = total - arr[i];
-      d.needsUpdate = true;
+      // The trail is revealed from the aperture in, the way the light
+      // travels, so scrolling pushes the light through the telescope.
       let s = 0;
       const cum = [0];
       for (let i = 1; i < pts.length; i++) cum.push((s += pts[i].distanceTo(pts[i - 1])));
@@ -118,7 +111,7 @@ export class LightPath {
     };
 
     let ref: number[] = [];
-    for (const [ri, r] of [0.5, 0.8, 1.1].entries()) {
+    for (const [ri, r] of [0.6, 1.0].entries()) {
       for (let k = 0; k < 8; k++) {
         const th = (k / 8) * Math.PI * 2 + ri * 0.4;
         const pts = [
@@ -152,6 +145,17 @@ export class LightPath {
     this.set(0, false, 0);
   }
 
+  /** A point `s` metres along the reference ray from the aperture: where the light's front is. */
+  at(s: number, out = new THREE.Vector3()) {
+    const P = this.stopPoints, S = this.stops;
+    if (!P.length) return out.set(0, 0, 0);
+    if (s <= S[0].s) return out.copy(P[0]).lerp(P[1] ?? P[0], 0).setY(P[0].y + (S[0].s - s));
+    for (let i = 1; i < S.length; i++) {
+      if (s <= S[i].s) return out.copy(P[i - 1]).lerp(P[i], (s - S[i - 1].s) / Math.max(1e-6, S[i].s - S[i - 1].s));
+    }
+    return out.copy(P[P.length - 1]);
+  }
+
   /** Tint the coronagraph's light with the theme's live colour. */
   setLive(c: THREE.Color) {
     this.cgiTrail.color.copy(c);
@@ -163,8 +167,8 @@ export class LightPath {
   }
 
   /**
-   * `progress`: metres of path revealed, counted back from the focal plane;
-   * `length` or more shows every ray whole. `opacity` fades the whole path.
+   * `progress`: metres of path revealed from the aperture in; `length` or
+   * more shows every ray whole. `opacity` fades the whole path.
    */
   set(progress: number, cgi: boolean, opacity: number) {
     this.group.visible = opacity > 0.001;
@@ -177,8 +181,8 @@ export class LightPath {
   }
 
   /** Photons stream along the path, aperture to detectors, once it is complete. */
-  tick(dt: number, progress: number) {
-    const complete = progress >= this.length - 0.02;
+  tick(dt: number, progress: number, strength = 1) {
+    const complete = progress >= this.length - 0.02 && strength > 0.01;
     const period = 2.6;
     this.pulseS = (this.pulseS + dt * 3.4) % period;
     for (const m of [this.pulse, this.cgiPulse]) {
@@ -186,6 +190,7 @@ export class LightPath {
       m.dashSize = 0.4;
       m.gapSize = period - 0.4;
       m.dashOffset = -this.pulseS;
+      m.opacity = Math.min(m.opacity, strength);
     }
   }
 

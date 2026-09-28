@@ -66,7 +66,7 @@
       <button class="icon-btn" class:active={uiStore.designerOpen} title="Designer" onclick={() => uiStore.designerOpen = !uiStore.designerOpen}>
         {@html ICON_DESIGNER}
       </button>
-      <button class="icon-btn" class:active={uiStore.romanView !== null} title="Roman Space Telescope: fly out to it" onclick={() => (uiStore.romanView ? uiStore.onLeaveRoman?.() : uiStore.onShowRoman?.())}>
+      <button class="icon-btn" class:active={uiStore.romanStoryActive} title="Roman Space Telescope: the story" onclick={() => uiStore.onEnterStory?.(0)}>
         {@html ICON_TELESCOPE}
       </button>
       <button class="icon-btn" class:active={uiStore.constellationOpen} title="Constellation" onclick={() => uiStore.constellationOpen = !uiStore.constellationOpen}>
