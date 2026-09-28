@@ -13,7 +13,8 @@ maths and the QC pass are exercised for real.
 WHAT THIS PROVES
     * the script runs start to finish with no exceptions
     * every primitive lands where the maths says it should
-    * the observatory bbox really does measure 12.70 x 4.40 m
+    * the observatory measures 12.70 m long and 6.20 m across the wings,
+      with the body inside 4.40 m
     * the hexapod struts really are ~2.4 m long
     * the conic sag equation produces the curvature it claims
     * collection/parent wiring is consistent
@@ -169,6 +170,8 @@ class Obj:
     # ID custom properties: obj["key"] = value, as bpy supports.
     def __setitem__(self, k, v): self._props[k] = v
     def __getitem__(self, k): return self._props[k]
+    def __delitem__(self, k): del self._props[k]
+    def get(self, k, d=None): return self._props.get(k, d)
     def __contains__(self, k): return k in self._props
     def keys(self): return self._props.keys()
 
@@ -584,8 +587,11 @@ def run():
     d = hi - lo
     check("observatory Z length == 12.70", abs(d.z - 12.70) < 0.02,
           f"got {d.z:.3f}")
-    check("observatory width across the sun shield (X) == 4.40", abs(d.x - 4.40) < 0.02,
+    check("wing span across the sun shield (X) == 6.20", abs(d.x - 6.20) < 0.05,
           f"got {d.x:.3f}")
+    wings = set(RB._collect("SOLAR_ARRAY_SUN_SHIELD")) | set(RB._collect("OSS.LowerInstrumentSunShade"))
+    bl, bh = real_bbox([o for o in RB._collect("OBSERVATORY") if o not in wings])
+    check("body width (X) <= 4.40", (bh - bl).x <= 4.42, f"got {(bh - bl).x:.3f}")
     check("base seated at Z=0", abs(lo.z) < 0.02, f"got {lo.z:.3f}")
 
     struts = [o for o in bpy.data.objects if o.name.startswith("SMA.Strut.")]
@@ -634,7 +640,9 @@ def run():
     check("no orphaned / double-linked objects", not orphans,
           f"{orphans[:3]}" if orphans else "")
 
-    # nothing should poke outside the published envelope
+    # nothing should poke outside the published envelope: 12.7 m long, the
+    # body inside 4.4 m, only the wings out to their 6.2 m span
+    wings = set(RB._collect("SOLAR_ARRAY_SUN_SHIELD")) | set(RB._collect("OSS.LowerInstrumentSunShade"))
     over = []
     for o in RB._collect("OBSERVATORY"):
         if o.type != 'MESH' or o.hide_render:
@@ -642,9 +650,10 @@ def run():
         l, h = real_bbox([o])
         if l is None:
             continue
-        if h.z > 12.72 or l.z < -0.02 or max(abs(l.x), abs(h.x)) > 2.22:
+        half = 3.12 if o in wings else 2.22
+        if h.z > 12.72 or l.z < -0.02 or max(abs(l.x), abs(h.x)) > half:
             over.append(o.name)
-    check("nothing breaches the 12.7 x 4.4 envelope", not over,
+    check("nothing breaches the 12.7 m x 4.4 m body / 6.2 m wing envelope", not over,
           f"{over[:3]}" if over else "")
 
     print(f"\n### {fails} harness assertion(s) failed\n")
@@ -660,7 +669,10 @@ def test_qc_catches_regressions():
     import roman_build as RB
     importlib.reload(RB)
     RB._evaluated_bbox = real_bbox
-    roman_dims.OBA_DIA = roman_dims.PUB(3.10, "DELIBERATELY WRONG")
+    # 6 cm narrow: small enough that check_budget still passes (the 3.90 m
+    # bus must fit under the barrel, so v2's 3.10 m now fails before QC
+    # runs), large enough that QC's 2 cm tolerance must catch it.
+    roman_dims.OBA_DIA = roman_dims.PUB(3.94, "DELIBERATELY WRONG")
     RB.RUN_QC = False
     RB.main()
     ok = RB.qc()

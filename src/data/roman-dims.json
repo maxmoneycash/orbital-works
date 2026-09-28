@@ -1,9 +1,9 @@
 {
  "_generated": "scripts/roman/export_dims.py -- do not edit by hand",
  "provenance": {
-  "EST": 53,
-  "PUB": 40,
-  "DER": 16,
+  "EST": 73,
+  "PUB": 41,
+  "DER": 18,
   "EST_INF": 2
  },
  "corrections": [
@@ -79,8 +79,68 @@
   },
   {
    "topic": "SASS_HALF_SPAN",
-   "text": "derived from the assumption that the arrays are the widest thing on the observatory. NASA press copy describes each of six panels as ~7 x 10 m, which cannot coexist with a 4.4 m deployed width. UNRESOLVED -- one of the two figures is wrong.",
-   "sources": "[S1][S7]"
+   "text": "derived from the assumption that the arrays are the widest thing on the observatory, against a reading of the panels as ~7 x 10 m. RESOLVED by [S14]: the panels are 7 x 10 FEET, 2.1 x 3 m, and three 2.1 m columns span ~6.3 m -- wider than 4.4",
+   "sources": "[S1][S7][S14]"
+  },
+  {
+   "topic": "OBA",
+   "text": "a round 4 m tube on six vertical stilts; V006 shows a HEXAGONAL shroud (corners at +-X, a flat sun-side top) around a round inscribed bore, framed at four stations, on a short open truss bay with isogrid panels -- the barrel is ~3.6 m of the 5 m, the bay ~1.4 m, not 2.8 + 2.2",
+   "sources": "[S13][S2]"
+  },
+  {
+   "topic": "OBA",
+   "text": "no front bulkhead; V006 F shows a flat front ring carrying the visor, its lower edge following the hex's lower facets down to a stepped keel with fittings -- the observatory's lowest point",
+   "sources": "[S13]"
+  },
+  {
+   "topic": "DAC",
+   "text": "a truncated cone; V006 shows a GABLED SCOOP -- one ridge boom and two eave booms run the full length, the roof flares up toward the tip, and the side walls are cut at a slant so the sun-side edge reaches ~4 m past the lower edge",
+   "sources": "[S13]"
+  },
+  {
+   "topic": "SASS",
+   "text": "flat roof 0.62 m off a round barrel with three equal columns; V006 F puts the roof just proud of the hex's sun-side flat and the hinge lines on that flat's corners, so the fixed centre column is the flat's width (2.0 m) and the outer columns are what is left of the envelope",
+   "sources": "[S13]"
+  },
+  {
+   "topic": "LISS",
+   "text": "two panels leaning 28 deg off the bus's sun face; V006 B/L put them in the roof plane, carrying the sun shield aft over the bus",
+   "sources": "[S13][S8]"
+  },
+  {
+   "topic": "HGA",
+   "text": "dish slung below the bus on a downward boom; V006 B shows the boom rising from the aft top of the bus and the 1.7 m dish above the sun shield, bowl toward the Sun/Earth side",
+   "sources": "[S13]"
+  },
+  {
+   "topic": "WFI/CGI",
+   "text": "WFI on +X and CGI on -X, both near the axis; the V006 part overlays put the CGI on +X and the WFI on -X, both in the anti-sun half of the bay, their outer faces standing just proud of the bay's lower facets",
+   "sources": "[S13]"
+  },
+  {
+   "topic": "bus",
+   "text": "2.9 m hexagon, flats at +-X, well inside the barrel, on a 0.8 m cone adapter; V006 B shows a hexagon nearly the barrel's width with its corners at +-X, on a short interface ring under a flat aft deck ringed by isogrid",
+   "sources": "[S13]"
+  },
+  {
+   "topic": "bus",
+   "text": "a closed 2.0 m box; V006 L/R show a closed box only ~1.4 m long, then an open, isogrid-framed bay ~2.5 m long that the WFI and CGI enclosures hang in, carrying on into the OBA's stand",
+   "sources": "[S13]"
+  },
+  {
+   "topic": "SASS/LISS",
+   "text": "array over the barrel only, shade tilted off the bus; V006 R/B show one roof: the LISS panels in the array's plane over the bus, the array running on to the front ring",
+   "sources": "[S13]"
+  },
+  {
+   "topic": "SMA",
+   "text": "hexapod struts skewed 14 deg with alternating heads; V006 F shows three V-pairs, one on the sun side, feet ~76 deg apart, heads converging to ~26 deg",
+   "sources": "[S13][S3]"
+  },
+  {
+   "topic": "TOTAL_WIDTH",
+   "text": "the model squeezed its wings inside 4.40 m. NASA's own panel size [S14] and the V006 renders [S13] both put the deployed wing span at ~6.2-7 m, so 4.40 m cannot be the span across the wings. The wings now take NASA's panel width (outer columns 2.1 m, LISS swung out from the bus's sun-side corners), and 4.40 m is read as the body's width: nothing but the wings may exceed it",
+   "sources": "[S1][S13][S14]"
   }
  ],
  "dims": {
@@ -139,61 +199,86 @@
    "note": ""
   },
   "BUS_ACROSS_CORNERS": {
-   "value": 2.9,
+   "value": 3.9,
    "tag": "EST",
-   "note": "hexagonal prism [S4]; must clear OBA and fit TOTAL_WIDTH"
+   "note": "hexagonal prism [S4], corners at +-X; V006 B [S13] shows it nearly the barrel's width (was 2.90)"
+  },
+  "BUS_BOX_H": {
+   "value": 1.4,
+   "tag": "EST",
+   "note": "V006 L/R [S13]: the CLOSED avionics box is only the aft ~1.4 m; the rest is an open, isogrid-framed bay the instruments hang in"
   },
   "BUS_H": {
-   "value": 2.0,
+   "value": 2.5,
    "tag": "EST",
-   "note": "TODO: measure off glb"
+   "note": "primary structure up to its top deck; keeps OBA_Z0 at 2.80 (was 2.00)"
   },
   "BUS_Z0": {
-   "value": 0.8,
+   "value": 0.3,
    "tag": "DER",
    "note": "= LVA_Z0 + LVA_H"
   },
+  "CGI_FACET_DEG": {
+   "value": 30.0,
+   "tag": "EST",
+   "note": "enclosure faces the lower +X facet; V006 L"
+  },
   "CGI_OFFSET": {
    "value": [
-    -0.8,
-    -0.25
+    1.429,
+    0.825
    ],
    "tag": "EST",
-   "note": ""
+   "note": "enclosure centre, radius 1.65 m along CGI_FACET_DEG"
   },
   "CGI_SIZE": {
    "value": [
-    0.95,
-    0.85,
-    1.22
+    0.7,
+    1.1,
+    2.4
    ],
    "tag": "EST",
-   "note": ""
+   "note": "(radial, tangential, height); V006 L"
   },
   "CGI_Z0": {
    "value": 3.35,
    "tag": "DER",
    "note": "= IC_Z0 + IC_H; sits on the deck"
   },
+  "DAC_APEX_H": {
+   "value": 2.36,
+   "tag": "EST",
+   "note": "ridge height above the axis; clears the hex shroud's top corners at the V006 roof pitch"
+  },
   "DAC_BOOMS": {
    "value": 3.0,
    "tag": "EST",
-   "note": "boom count not published"
+   "note": "V006 F [S13]: boom-end fittings at the ridge and both eaves"
   },
   "DAC_BOOM_DIA": {
-   "value": 0.05,
+   "value": 0.06,
    "tag": "EST",
    "note": ""
   },
   "DAC_DIA_BASE": {
-   "value": 3.95,
-   "tag": "DER",
-   "note": "~ OBA_DIA less clearance"
+   "value": 4.12,
+   "tag": "EST",
+   "note": "width across the side walls (no longer a diameter); just outside the shroud's corners"
   },
   "DAC_DIA_TOP": {
-   "value": 3.1,
+   "value": 4.12,
    "tag": "EST",
-   "note": ""
+   "note": "walls run straight; V006 F fit puts the eave corners and wall corners on one width"
+  },
+  "DAC_EAVE_H": {
+   "value": 1.3,
+   "tag": "EST",
+   "note": "eave height; V006 F/L fits, roof pitch ~27 deg"
+  },
+  "DAC_EAVE_REACH": {
+   "value": 4.1,
+   "tag": "EST",
+   "note": "the eave booms and the walls' cut run this far forward of the base; the ridge runs the full 4.90 m. V006 L camera fit: eave corner at ~11.9 m"
   },
   "DAC_H_DEPLOYED": {
    "value": 4.9,
@@ -209,6 +294,16 @@
    "value": 1.0,
    "tag": "PUB",
    "note": "[S6] soft material on support booms"
+  },
+  "DAC_SKIRT_LEN": {
+   "value": 0.8,
+   "tag": "EST",
+   "note": "length of the walls' short lower edge, where the mouth's slanted plane starts; V006 L/R"
+  },
+  "DAC_WALL_BOTTOM": {
+   "value": 0.55,
+   "tag": "EST",
+   "note": "side walls stop this far BELOW the axis; V006 F fit"
   },
   "DAC_Z0": {
    "value": 7.8,
@@ -230,6 +325,11 @@
    "tag": "EST",
    "note": ""
   },
+  "FOA_FOOT_RADIUS": {
+   "value": 1.02,
+   "tag": "EST",
+   "note": "strut feet on the carrier, pulled inboard of the WFI/CGI enclosures (was 0.42 x IC_DIA)"
+  },
   "FOA_STRUTS": {
    "value": 6.0,
    "tag": "PUB",
@@ -245,25 +345,30 @@
    "tag": "EST",
    "note": ""
   },
-  "HGA_BOOM_DOWN_DEG": {
-   "value": 38.0,
-   "tag": "EST",
-   "note": "deployed boom angle below the bus"
-  },
   "HGA_BOOM_LEN": {
-   "value": 1.25,
+   "value": 1.5,
    "tag": "EST",
-   "note": "placement schematic; boom deploys after launch"
+   "note": "V006 F fit: dish vertex ~3.6 m above the axis"
+  },
+  "HGA_BOOM_TILT_DEG": {
+   "value": 14.0,
+   "tag": "EST",
+   "note": "boom leans forward from vertical just enough that the dish clears the Z=0 datum; V006 L puts the dish ~0.6 m further aft"
   },
   "HGA_DISH_DEPTH": {
-   "value": 0.26,
+   "value": 0.38,
    "tag": "EST",
-   "note": ""
+   "note": "V006 F/B show a deep bowl, depth ~0.2 D (was 0.26)"
   },
   "HGA_DISH_DIA": {
    "value": 1.7,
    "tag": "PUB",
    "note": "[S10] 1.7 m carbon-composite dish, 10.9 kg"
+  },
+  "HGA_DISH_RIBS": {
+   "value": 24.0,
+   "tag": "EST",
+   "note": "radial ribs on the dish's back; V006 F/B/L"
   },
   "HGA_FEED_STRUTS": {
    "value": 4.0,
@@ -281,19 +386,19 @@
    "note": ""
   },
   "HGA_ROOT_Z": {
-   "value": 1.7,
+   "value": 0.45,
    "tag": "EST",
-   "note": "boom root height on the bus"
+   "note": "boom root on the bus's sun-side flat, just forward of the aft deck; V006 B/L (was 1.70)"
   },
   "HGA_STOWED_DEG": {
-   "value": -70.0,
+   "value": -34.0,
    "tag": "EST",
-   "note": "boom folded up against the bus for launch"
+   "note": "boom folded forward through the slot between the LISS panels, dish clear above the roof; the real launch stowage is not published (-70 swung the dish into the instrument bay)"
   },
   "IC_DIA": {
-   "value": 3.4,
+   "value": 3.2,
    "tag": "EST",
-   "note": ""
+   "note": "fits inside the bay truss (hex inradius ~1.69 m); was 3.40"
   },
   "IC_H": {
    "value": 0.55,
@@ -305,20 +410,25 @@
    "tag": "DER",
    "note": ""
   },
+  "INSTR_BOX_Z0": {
+   "value": 1.85,
+   "tag": "EST",
+   "note": "WFI and CGI enclosures start just forward of the closed bus box and run the bay's length; V006 L/R"
+  },
   "LGA_DIA": {
    "value": 0.14,
    "tag": "EST",
    "note": ""
   },
-  "LISS_HINGE_GAP": {
-   "value": 0.1,
+  "LISS_CHAMFER": {
+   "value": 0.35,
    "tag": "EST",
-   "note": "standoff from the bus face"
+   "note": "outer-aft corner cut; V006 L/B roof outline"
   },
   "LISS_OPEN_DEG": {
-   "value": 28.0,
+   "value": 60.0,
    "tag": "EST",
-   "note": "not published; kept inside the SASS plane"
+   "note": "swing from folded onto the bus's upper facet (the hexagon's 60 deg slope) out to the roof plane; not published (was 90, hanging down the bus flank)"
   },
   "LISS_PANELS": {
    "value": 2.0,
@@ -340,50 +450,90 @@
    "tag": "PUB",
    "note": "[S8] ~7 ft"
   },
+  "LISS_STANDOFF": {
+   "value": 0.5933,
+   "tag": "DER",
+   "note": "panels sit in the sun shield's plane, on arms off the bus's sun-side corners; V006 B/R"
+  },
   "LISS_Z0": {
-   "value": 1.1,
+   "value": 0.05,
    "tag": "EST",
-   "note": "attachment height on the bus"
+   "note": "aft edge of the panels, flush with the aft end; V006 L overhangs it, the Z=0 datum does not allow that (was 1.10)"
   },
   "LVA_DIA_BOTTOM": {
-   "value": 2.6,
+   "value": 3.05,
    "tag": "EST",
-   "note": ""
+   "note": "separation flange; V006 B ring ~0.75x the bus's across-corners width"
   },
   "LVA_DIA_TOP": {
-   "value": 3.2,
+   "value": 2.95,
    "tag": "EST",
-   "note": ""
+   "note": "ring body, same V006 B reading"
   },
   "LVA_H": {
-   "value": 0.8,
+   "value": 0.3,
    "tag": "EST",
-   "note": "TODO: Falcon Heavy PAF stack height"
+   "note": "V006 B/L [S13]: a short interface ring under a flat aft deck, not a tall cone (was 0.80)"
   },
   "LVA_Z0": {
    "value": 0.0,
    "tag": "DER",
    "note": "datum"
   },
+  "OBA_BORE_DIA": {
+   "value": 3.36,
+   "tag": "EST",
+   "note": "round bore inscribed in the hex shroud, nearly touching its flats as in V006 F [S13]; clears the 2.62 m forward metering hoop"
+  },
   "OBA_DIA": {
    "value": 4.0,
    "tag": "PUB",
-   "note": "[S2] ~13.5 ft"
+   "note": "[S2] ~13.5 ft; read as the hex shroud's across-corners width (X), per V006 [S13]"
+  },
+  "OBA_FRAME_STATIONS": {
+   "value": [
+    0.0,
+    0.27,
+    0.66,
+    0.84
+   ],
+   "tag": "EST",
+   "note": "external ring frames as fractions of the barrel length, read off V006 L/R [S13]"
   },
   "OBA_H": {
    "value": 5.0,
    "tag": "PUB",
    "note": "[S2] ~17 ft"
   },
-  "OBA_VANE_W": {
-   "value": 0.35,
+  "OBA_KEEL_DEPTH": {
+   "value": 2.2,
    "tag": "EST",
-   "note": "radial width of each annular baffle vane"
+   "note": "front ring's stepped keel reaches this far below the axis. V006 F/L fits read ~2.5, but V006 B hides it behind the bus, which caps it near 2.2; the lowest point in F/L/R"
+  },
+  "OBA_RING_T": {
+   "value": 0.12,
+   "tag": "EST",
+   "note": "front ring plate carrying the visor, V006 F"
+  },
+  "OBA_TOP_FLAT_W": {
+   "value": 2.0,
+   "tag": "DER",
+   "note": "hex side = circumradius = OBA_DIA/2"
+  },
+  "OBA_VANES": {
+   "value": 6.0,
+   "tag": "EST",
+   "note": "V006 L [S13]: ~5-6 rings visible in the bore"
+  },
+  "OBA_VANE_W": {
+   "value": 0.22,
+   "tag": "EST",
+   "note": "radial width of each annular baffle vane; V006 L shows narrow closely spaced rings"
   },
   "OBA_WALL": {
    "value": 0.06,
    "tag": "EST",
-   "note": ""
+   "note": "blanketed shroud skin"
   },
   "OBA_Z0": {
    "value": 2.8,
@@ -443,15 +593,20 @@
    "tag": "EST",
    "note": "[S3] flat OVAL mirror on the AMS"
   },
+  "SASS_CHAMFER": {
+   "value": 0.3,
+   "tag": "EST",
+   "note": "outer corners of the end panels are cut at 45 deg; V006 F/L"
+  },
   "SASS_COLUMNS": {
    "value": 3.0,
    "tag": "PUB",
    "note": "[S9] photos: 3 columns x 2 rows of panels"
   },
   "SASS_COL_W": {
-   "value": 1.4667,
+   "value": 2.0,
    "tag": "DER",
-   "note": "three coplanar columns spanning the published width"
+   "note": "fixed centre column = the barrel's sun-side flat, hinged at its corners; V006 F (was TOTAL_WIDTH/3)"
   },
   "SASS_DEPLOY_PANELS": {
    "value": 4.0,
@@ -464,19 +619,24 @@
    "note": "[S7] centre pair, fixed to the OBA"
   },
   "SASS_FOLD_DEG": {
-   "value": 57.3,
+   "value": 65.8,
    "tag": "DER",
-   "note": "deepest fold before the column's edge meets the barrel"
+   "note": "deepest fold before the column meets the hex shroud"
   },
   "SASS_H": {
-   "value": 4.6,
+   "value": 5.45,
    "tag": "EST",
-   "note": ""
+   "note": "two ~2.7 m rows running to the barrel's front ring; V006 R (was 4.60)"
   },
   "SASS_HALF_SPAN": {
-   "value": 2.2,
+   "value": 3.1,
    "tag": "DER",
-   "note": "ASSUMES the arrays are the widest item -- see CORRECTIONS; NASA panel sizing conflicts with this"
+   "note": "centre half-column + one outer column, deployed flat; the wings, not the body, set the span"
+  },
+  "SASS_OUTER_W": {
+   "value": 2.1,
+   "tag": "PUB",
+   "note": "[S14] each panel ~7 x 10 ft (2.1 x 3 m); the V006 F camera fit reads ~2.5 m, within its perspective error (was 1.20, squeezed into 4.40 m)"
   },
   "SASS_PANELS": {
    "value": 6.0,
@@ -484,9 +644,9 @@
    "note": "[S6][S7] six solar array panels"
   },
   "SASS_PANEL_T": {
-   "value": 0.05,
+   "value": 0.06,
    "tag": "EST",
-   "note": ""
+   "note": "V006 F edge-on panels read as slabs"
   },
   "SASS_ROWS": {
    "value": 2.0,
@@ -494,9 +654,9 @@
    "note": "[S9] photos: 3 columns x 2 rows of panels"
   },
   "SASS_STANDOFF": {
-   "value": 0.62,
+   "value": 0.55,
    "tag": "EST",
-   "note": "sun-side standoff from the barrel"
+   "note": "array centre-plane above the barrel's sun-side flat, on brackets; V006 F camera fit puts the wings ~2.3 m above the axis (was 0.62 off a round barrel)"
   },
   "SASS_STOWED_AGAINST_OBA": {
    "value": 1.0,
@@ -504,9 +664,9 @@
    "note": "[S6] folded down against the OBA for launch"
   },
   "SASS_Z0": {
-   "value": 2.6,
+   "value": 2.2,
    "tag": "EST",
-   "note": ""
+   "note": "aft edge of the array, just forward of the LISS it continues; V006 L/R/B (was 2.60)"
   },
   "SCRAPERS": {
    "value": 1.0,
@@ -523,8 +683,27 @@
    "tag": "EST",
    "note": "TODO: not published in cleared literature"
   },
+  "SM_PAIR_CENTRES_DEG": {
+   "value": [
+    270.0,
+    30.0,
+    150.0
+   ],
+   "tag": "EST",
+   "note": "pair centres, Blender angle from +X; 270 = sun side (-Y). V006 F"
+  },
+  "SM_PAIR_FOOT_HALF_DEG": {
+   "value": 38.0,
+   "tag": "EST",
+   "note": "V006 F: feet at pair centre +-38 deg"
+  },
+  "SM_PAIR_HEAD_HALF_DEG": {
+   "value": 13.0,
+   "tag": "EST",
+   "note": "V006 F: heads at pair centre +-13 deg"
+  },
   "SM_RISE": {
-   "value": 2.1892,
+   "value": 2.1762,
    "tag": "DER",
    "note": "= sqrt(L^2 - chord^2), chord by law of cosines w/ skew"
   },
@@ -544,9 +723,9 @@
    "note": "[S3] ~2.4-meter-length secondary mirror struts"
   },
   "SM_STRUT_SKEW_DEG": {
-   "value": 14.0,
-   "tag": "EST",
-   "note": "hexapod pairs skew tangentially; not published"
+   "value": 25.0,
+   "tag": "DER",
+   "note": "= foot half-angle - head half-angle (was EST 14)"
   },
   "SM_TOP_RADIUS": {
    "value": 0.34,
@@ -554,22 +733,22 @@
    "note": "strut heads on the SMA"
   },
   "SM_Z": {
-   "value": 7.7592,
+   "value": 7.7462,
    "tag": "DER",
    "note": "PM vertex + hoop + solved rise"
   },
   "STAND_H": {
-   "value": 2.2,
+   "value": 1.4,
    "tag": "EST",
-   "note": "[S2] 'elephant stand' lower truss"
+   "note": "[S2] 'elephant stand' lower truss; V006 L/R [S13] open bay ~0.4x the barrel (was 2.20)"
   },
   "STAND_LEGS": {
    "value": 6.0,
    "tag": "EST",
-   "note": ""
+   "note": "one longeron per hex corner"
   },
   "STAND_LEG_DIA": {
-   "value": 0.16,
+   "value": 0.11,
    "tag": "EST",
    "note": ""
   },
@@ -615,7 +794,7 @@
   "TOTAL_WIDTH": {
    "value": 4.4,
    "tag": "PUB",
-   "note": "[S1] deployed; read as the span across the sun shield (X). Depth is not published."
+   "note": "[S1][S10] 'over 14 ft wide'; read as the body's width (X). The wings reach past it: see SASS_HALF_SPAN and CORRECTIONS."
   },
   "WFI_DETECTORS": {
    "value": 18.0,
@@ -627,6 +806,11 @@
    "tag": "PUB",
    "note": "[S12] 11-position element wheel"
   },
+  "WFI_FACET_DEG": {
+   "value": 150.0,
+   "tag": "EST",
+   "note": "enclosure faces the lower -X facet; V006 R/F"
+  },
   "WFI_FOV_DEG": {
    "value": [
     0.8,
@@ -637,20 +821,20 @@
   },
   "WFI_OFFSET": {
    "value": [
-    0.75,
-    0.3
+    -1.381,
+    0.798
    ],
    "tag": "EST",
-   "note": ""
+   "note": "enclosure centre, radius 1.595 m along WFI_FACET_DEG"
   },
   "WFI_SIZE": {
    "value": [
-    1.3,
-    1.1,
-    1.28
+    0.85,
+    1.5,
+    2.4
    ],
    "tag": "EST",
-   "note": ""
+   "note": "(radial, tangential, height) of the enclosure; V006 R"
   },
   "WFI_WHEEL_DIA": {
    "value": 0.46,

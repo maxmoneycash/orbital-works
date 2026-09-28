@@ -1,11 +1,36 @@
 """
-roman_build.py  --  v2
+roman_build.py  --  v3
 Nancy Grace Roman Space Telescope -- Blender scene builder.
 
 Requires roman_dims.py in the same folder.
 
     Blender > Scripting > Open > roman_build.py > Run
     (or)  blender --python roman_build.py
+
+WHAT CHANGED IN v3  (shape pass against NASA's V006 tour renders [S13])
+--------------------------------------------------------------------
+* Outer Barrel Assembly: a hexagonal shroud (corners on +-X, a flat under
+  the sun shield) around a round bore, with four external frames, corner
+  longerons, brackets, six baffle vanes and a front ring whose lower edge
+  follows the hex down to a stepped keel. It stands on a short open truss
+  bay -- corner longerons, ring beams, X-braces, isogrid shear panels --
+  instead of six vertical stilts.
+* Deployable Aperture Cover: a gabled scoop on a ridge boom and two eave
+  booms, its side walls cut at a slant, instead of a truncated cone.
+* Solar Array Sun Shield: a flat roof just proud of the shroud's sun-side
+  flat, hinged at that flat's corners; chamfered, framed panels.
+* LISS: in the roof plane over the bus. HGA: on a boom rising from the
+  aft, sun-side edge of the bus, a ribbed dish above the roof.
+* Bus: a hexagon nearly the barrel's width, corners on +-X, radiators,
+  isogrid aft deck, thruster pods, star trackers, RF electronics, on a
+  short adapter ring. WFI and CGI moved to the anti-sun corners of the bay
+  (WFI -X, CGI +X), as NASA's part overlays place them.
+* Detail that nobody picks on its own is built by MeshBuilder as one mesh
+  per subsystem and material, so the web export stays light.
+* Wings at NASA's spans: outer SASS columns are the published 2.1 m
+  panels, and the LISS swings out from the bus's sun-side corners, so the
+  deployed span is ~6.2 m. 4.40 m is the body's width (roman_dims
+  TOTAL_WIDTH), and QC checks the body and the span separately.
 
 WHAT CHANGED FROM v1
 --------------------
@@ -287,34 +312,405 @@ def conic_mirror(name, dia, roc, conic, z, target, parent=None, mat=None,
     return _finish(o, name, target, parent, mat)
 
 
-def paraboloid_dish(name, dia, depth, loc, target, parent=None, mat=None):
-    """A real parabolic dish, not a squashed sphere (v1 used a sphere)."""
-    r = dia / 2
-    a = depth / (r * r) if r > 1e-9 else 0.0
-    bm = bmesh.new()
-    nr, na = 20, 48
-    rings = []
-    for i in range(nr + 1):
-        rr = r * i / nr
-        rings.append([bm.verts.new((rr * math.cos(2 * math.pi * j / na),
-                                    rr * math.sin(2 * math.pi * j / na),
-                                    a * rr * rr)) for j in range(na)])
-    for i in range(nr):
-        for j in range(na):
-            k = (j + 1) % na
-            bm.faces.new((rings[i][j], rings[i][k],
-                          rings[i + 1][k], rings[i + 1][j]))
-    bm.faces.new(rings[0][::-1])
-    bm.normal_update()
-    me = bpy.data.meshes.new(name)
-    bm.to_mesh(me)
-    bm.free()
-    o = bpy.data.objects.new(name, me)
-    bpy.context.scene.collection.objects.link(o)
-    o.location = Vector(loc)
-    return _finish(o, name, target, parent, mat)
+# ===========================================================================
+# MESH BUILDER  --  many primitives, one mesh
+# ===========================================================================
+#
+# Plain-tuple vector maths on purpose: the stub harness models only a
+# sliver of mathutils, and everything here has to run under it too.
+
+def _add(a, b): return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+def _sub(a, b): return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+def _mul(a, s): return (a[0] * s, a[1] * s, a[2] * s)
+def _dot(a, b): return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
 
+def _cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0])
+
+
+def _len(a): return math.sqrt(_dot(a, a))
+
+
+def _unit(a):
+    L = _len(a)
+    return _mul(a, 1.0 / L) if L > 1e-12 else (0.0, 0.0, 0.0)
+
+
+def _lerp(a, b, t): return _add(a, _mul(_sub(b, a), t))
+def _t3(p): return (float(p[0]), float(p[1]), float(p[2]))
+
+
+def _frame(d):
+    """Two unit vectors perpendicular to unit `d` and to each other."""
+    ref = (0.0, 0.0, 1.0) if abs(d[2]) < 0.9 else (1.0, 0.0, 0.0)
+    u = _unit(_cross(d, ref))
+    return u, _cross(d, u)
+
+
+def _newell(pts):
+    nx = ny = nz = 0.0
+    n = len(pts)
+    for i in range(n):
+        x0, y0, z0 = pts[i]
+        x1, y1, z1 = pts[(i + 1) % n]
+        nx += (y0 - y1) * (z0 + z1)
+        ny += (z0 - z1) * (x0 + x1)
+        nz += (x0 - x1) * (y0 + y1)
+    return (nx, ny, nz)
+
+
+def _polar(r, a, z=0.0): return (r * math.cos(a), r * math.sin(a), z)
+
+
+class MeshBuilder:
+    """Accumulates primitives as ONE mesh, in world coordinates.
+
+    The web export is per object: forty struts built as forty objects are
+    forty draw calls and forty rows in the explorer's part list. Detail
+    nobody picks on its own -- truss members, brackets, isogrid ribs -- is
+    built here and lands as one mesh per subsystem and material, while the
+    parts the viewer names, folds and lights stay separate objects.
+
+    Every face is oriented explicitly, by a direction its normal must face,
+    so SOLIDIFY, backface culling and the viewer's inside/outside shading
+    all agree. Nothing is left to recalc-normals guesswork.
+    """
+
+    def __init__(self):
+        self.verts = []
+        self.faces = []
+
+    def v(self, p):
+        self.verts.append(_t3(p))
+        return len(self.verts) - 1
+
+    def face(self, ids, want=None):
+        ids = [i for k, i in enumerate(ids) if i != ids[k - 1]]
+        if len(set(ids)) < 3 or len(set(ids)) != len(ids):
+            return
+        n = _newell([self.verts[i] for i in ids])
+        if _len(n) < 1e-12:
+            return
+        if want is not None and _dot(n, want) < 0:
+            ids.reverse()
+        self.faces.append(tuple(ids))
+
+    # ---- solids -----------------------------------------------------------
+    def box(self, c, size, axes=((1, 0, 0), (0, 1, 0), (0, 0, 1))):
+        """Oriented box: `size` measured along the three `axes`."""
+        e = [_mul(_unit(a), s / 2.0) for a, s in zip(axes, size)]
+        ids = {}
+        for i in (0, 1):
+            for j in (0, 1):
+                for k in (0, 1):
+                    p = c
+                    for sgn, ax in zip((i, j, k), e):
+                        p = _add(p, _mul(ax, 2 * sgn - 1))
+                    ids[(i, j, k)] = self.v(p)
+        quads = (((0, 0, 0), (0, 1, 0), (0, 1, 1), (0, 0, 1)),
+                 ((1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1)),
+                 ((0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)),
+                 ((0, 1, 0), (1, 1, 0), (1, 1, 1), (0, 1, 1)),
+                 ((0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)),
+                 ((0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)))
+        for q in quads:
+            cen = _mul(_add(_add(self.verts[ids[q[0]]], self.verts[ids[q[1]]]),
+                            _add(self.verts[ids[q[2]]], self.verts[ids[q[3]]])), 0.25)
+            self.face([ids[x] for x in q], want=_sub(cen, c))
+
+    def beam(self, p0, p1, w, t, up=(0.0, 0.0, 1.0)):
+        """A w x t bar from p0 to p1; its t side runs along `up`."""
+        p0, p1 = _t3(p0), _t3(p1)
+        d = _sub(p1, p0)
+        L = _len(d)
+        if L < 1e-6:
+            return
+        d = _mul(d, 1.0 / L)
+        side = _cross(d, up)
+        if _len(side) < 1e-6:
+            side = _frame(d)[0]
+        side = _unit(side)
+        self.box(_lerp(p0, p1, 0.5), (L, w, t), (d, side, _cross(side, d)))
+
+    def rod(self, p0, p1, r, n=8, caps=True, r1=None):
+        """Round bar -- or a frustum, given r1 -- from p0 to p1."""
+        p0, p1 = _t3(p0), _t3(p1)
+        d = _sub(p1, p0)
+        L = _len(d)
+        if L < 1e-6:
+            return
+        d = _mul(d, 1.0 / L)
+        u, w = _frame(d)
+        r1 = r if r1 is None else r1
+
+        def ring(p, rr):
+            return [self.v(_add(p, _add(_mul(u, rr * math.cos(2 * math.pi * k / n)),
+                                        _mul(w, rr * math.sin(2 * math.pi * k / n)))))
+                    for k in range(n)]
+        a, b = ring(p0, r), ring(p1, r1)
+        for k in range(n):
+            k2 = (k + 1) % n
+            ang = 2 * math.pi * (k + 0.5) / n
+            radial = _add(_mul(u, math.cos(ang)), _mul(w, math.sin(ang)))
+            self.face([a[k], a[k2], b[k2], b[k]], want=radial)
+        if caps:
+            self.face(a, want=_mul(d, -1.0))
+            self.face(b, want=d)
+
+    def lathe(self, prof, origin, axis, n=32, a0=0.0):
+        """Solid of revolution. `prof` is a CLOSED loop of (r, s) points,
+        counter-clockwise in the (r out, s along axis) half-plane, so each
+        face's outward normal is known from its profile segment."""
+        d = _unit(_t3(axis))
+        u, w = _frame(d)
+        origin = _t3(origin)
+        rings = []
+        for r, s in prof:
+            c = _add(origin, _mul(d, s))
+            if r < 1e-7:
+                rings.append([self.v(c)] * n)          # a pole, not a ring
+            else:
+                rings.append([self.v(_add(c, _add(
+                    _mul(u, r * math.cos(a0 + 2 * math.pi * k / n)),
+                    _mul(w, r * math.sin(a0 + 2 * math.pi * k / n)))))
+                    for k in range(n)])
+        m = len(prof)
+        for i in range(m):
+            (r0, s0), (r1, s1) = prof[i], prof[(i + 1) % m]
+            nr, ns = (s1 - s0), -(r1 - r0)            # outward, CCW loop
+            ra, rb = rings[i], rings[(i + 1) % m]
+            for k in range(n):
+                k2 = (k + 1) % n
+                ang = a0 + 2 * math.pi * (k + 0.5) / n
+                radial = _add(_mul(u, math.cos(ang)), _mul(w, math.sin(ang)))
+                self.face([ra[k], ra[k2], rb[k2], rb[k]],
+                          want=_add(_mul(radial, nr), _mul(d, ns)))
+
+    def prism(self, poly, origin, ex, ey, ez, depth):
+        """Extrude a 2D polygon, drawn in the (ex, ey) plane at `origin`,
+        by `depth` along ez. Concave outlines are fine."""
+        area = sum(poly[i][0] * poly[(i + 1) % len(poly)][1] -
+                   poly[(i + 1) % len(poly)][0] * poly[i][1]
+                   for i in range(len(poly)))
+        ccw = area > 0
+
+        def at(x, y, h):
+            return _add(_add(_add(_t3(origin), _mul(ex, x)), _mul(ey, y)), _mul(ez, h))
+        bot = [self.v(at(x, y, 0.0)) for x, y in poly]
+        top = [self.v(at(x, y, depth)) for x, y in poly]
+        n = len(poly)
+        for i in range(n):
+            j = (i + 1) % n
+            dx, dy = poly[j][0] - poly[i][0], poly[j][1] - poly[i][1]
+            nx, ny = (dy, -dx) if ccw else (-dy, dx)
+            self.face([bot[i], bot[j], top[j], top[i]],
+                      want=_add(_mul(ex, nx), _mul(ey, ny)))
+        self.face(bot, want=_mul(ez, -1.0))
+        self.face(top, want=ez)
+
+    def plate_with_hole(self, outer, inner, origin, ex, ey, ez, depth):
+        """A flat plate, outline `outer` with hole `inner` (2D loops, both
+        star-shaped about the origin), extruded along ez. The two loops are
+        zipped together by angle, so no triangulator is needed."""
+        def by_angle(loop):
+            pts = sorted(((math.atan2(y, x) % (2 * math.pi), (x, y)) for x, y in loop))
+            return [a for a, _ in pts], [p for _, p in pts]
+        A, outer = by_angle(outer)
+        B, inner = by_angle(inner)
+        na, nb = len(outer), len(inner)
+        tris = []
+        Ae, Be = A + [A[0] + 2 * math.pi], B + [B[0] + 2 * math.pi]
+        i = j = 0
+        while i < na or j < nb:
+            if j >= nb or (i < na and Ae[i + 1] <= Be[j + 1]):
+                tris.append((("o", i % na), ("o", (i + 1) % na), ("i", j % nb)))
+                i += 1
+            else:
+                tris.append((("o", i % na), ("i", (j + 1) % nb), ("i", j % nb)))
+                j += 1
+
+        def at(x, y, h):
+            return _add(_add(_add(_t3(origin), _mul(ex, x)), _mul(ey, y)), _mul(ez, h))
+        ids = {}
+        for side, h in (("b", 0.0), ("t", depth)):
+            ids[(side, "o")] = [self.v(at(x, y, h)) for x, y in outer]
+            ids[(side, "i")] = [self.v(at(x, y, h)) for x, y in inner]
+        for side, want in (("b", _mul(ez, -1.0)), ("t", ez)):
+            for tri in tris:
+                self.face([ids[(side, loop)][k] for loop, k in tri], want=want)
+        for loop, pts, sgn in (("o", outer, 1.0), ("i", inner, -1.0)):
+            m = len(pts)
+            for k in range(m):
+                k2 = (k + 1) % m
+                mx = (pts[k][0] + pts[k2][0]) / 2
+                my = (pts[k][1] + pts[k2][1]) / 2
+                self.face([ids[("b", loop)][k], ids[("b", loop)][k2],
+                           ids[("t", loop)][k2], ids[("t", loop)][k]],
+                          want=_mul(_add(_mul(ex, mx), _mul(ey, my)), sgn))
+
+    # ---- output -----------------------------------------------------------
+    def build(self, name, target, parent=None, mat=None, uv=0.5, fit=None,
+              bevel=False):
+        """Make the object. `uv` box-projects UVs in metres x uv; `fit`
+        maps two world axes onto 0..1 instead, for textures that tile per
+        panel (the solar cells). Builder meshes skip the edge bevel unless
+        asked: on thousands of small ribs it multiplies the vertex count
+        for edges nobody can see."""
+        bm = bmesh.new()
+        bv = [bm.verts.new(p) for p in self.verts]
+        for f in self.faces:
+            try:
+                bm.faces.new([bv[i] for i in f])
+            except ValueError:
+                pass                                   # duplicate face
+        bm.normal_update()
+        loops = getattr(bm, "loops", None)             # absent in the stub
+        if loops is not None and (uv or fit):
+            lay = loops.layers.uv.new("UVMap")
+            for fc in bm.faces:
+                nrm = fc.normal
+                ax = max(range(3), key=lambda k: abs(nrm[k]))
+                a, b = ((1, 2), (0, 2), (0, 1))[ax]
+                for lp in fc.loops:
+                    co = lp.vert.co
+                    if fit:
+                        (iu, u0, u1), (iv, v0, v1) = fit
+                        lp[lay].uv = ((co[iu] - u0) / (u1 - u0),
+                                      (co[iv] - v0) / (v1 - v0))
+                    else:
+                        lp[lay].uv = (co[a] * uv, co[b] * uv)
+        me = bpy.data.meshes.new(name)
+        bm.to_mesh(me)
+        bm.free()
+        o = bpy.data.objects.new(name, me)
+        bpy.context.scene.collection.objects.link(o)
+        if not bevel:
+            o["no_bevel"] = 1
+        return _finish(o, name, target, parent, mat)
+
+
+# ---------------------------------------------------------------------------
+# hexagon helpers. Both hexagons (bus, shroud) have their CORNERS on +-X
+# and a flat on the sun side (-Y), as V006 shows them [S13]. Face k runs
+# from corner k to corner k+1 and faces angle 60k + 30 deg.
+# ---------------------------------------------------------------------------
+
+_SQ3 = math.sqrt(3.0)
+
+
+def _hex_corner(R, k):
+    a = math.radians(60 * k)
+    return (R * math.cos(a), R * math.sin(a))
+
+
+def _hex_corners(R):
+    return [_hex_corner(R, k) for k in range(6)]
+
+
+def _hex_r(R, th):
+    """Centre-to-boundary distance of the hexagon at angle th."""
+    th = th % (2 * math.pi)
+    k = math.floor(th / (math.pi / 3) + 1e-9)
+    return R * _SQ3 / 2 / math.cos(th - (k + 0.5) * math.pi / 3)
+
+
+def _hex_face(k):
+    """(outward normal, tangent) of hex face k, both in XY."""
+    a = math.radians(60 * k + 30)
+    return (math.cos(a), math.sin(a), 0.0), (-math.sin(a), math.cos(a), 0.0)
+
+
+def _facet(deg):
+    a = math.radians(deg)
+    return (math.cos(a), math.sin(a), 0.0), (-math.sin(a), math.cos(a), 0.0)
+
+
+def _subdivide(loop, step):
+    """Insert points so no edge of a closed 2D loop is longer than step."""
+    out = []
+    for i, p in enumerate(loop):
+        q = loop[(i + 1) % len(loop)]
+        n = max(1, int(math.ceil(math.hypot(q[0] - p[0], q[1] - p[1]) / step)))
+        out.extend((p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n)
+                   for k in range(n))
+    return out
+
+
+def _isogrid(mb, poly, origin, e1, e2, nrm, spacing, rib_w, rib_h,
+             hole_r=0.0, frame=True):
+    """Triangular isogrid ribs clipped to a convex 2D polygon (CCW, in the
+    e1/e2 plane at origin), optionally with a round hole about the origin.
+    Ribs stand rib_h proud along `nrm`."""
+    def P(x, y, h=0.0):
+        return _add(_add(_add(_t3(origin), _mul(e1, x)), _mul(e2, y)), _mul(nrm, h))
+    n = len(poly)
+    for th in (0.0, math.pi / 3, 2 * math.pi / 3):
+        d = (math.cos(th), math.sin(th))
+        nn = (-d[1], d[0])
+        offs = [p[0] * nn[0] + p[1] * nn[1] for p in poly]
+        for kk in range(int(math.ceil(min(offs) / spacing)),
+                        int(math.floor(max(offs) / spacing)) + 1):
+            c = kk * spacing
+            base = (nn[0] * c, nn[1] * c)
+            t0, t1 = -1e9, 1e9
+            for i in range(n):                        # Cyrus-Beck clip
+                a, b = poly[i], poly[(i + 1) % n]
+                inward = (-(b[1] - a[1]), b[0] - a[0])
+                num = inward[0] * (base[0] - a[0]) + inward[1] * (base[1] - a[1])
+                den = inward[0] * d[0] + inward[1] * d[1]
+                if abs(den) < 1e-12:
+                    if num < 0:
+                        t0, t1 = 1, 0
+                    continue
+                t = -num / den
+                if den > 0:
+                    t0 = max(t0, t)
+                else:
+                    t1 = min(t1, t)
+            if t1 - t0 < 0.04:
+                continue
+            spans = [(t0, t1)]
+            if hole_r > 0 and abs(c) < hole_r:
+                th_ = math.sqrt(hole_r * hole_r - c * c)
+                spans = [(t0, min(t1, -th_)), (max(t0, th_), t1)]
+            for s0, s1 in spans:
+                if s1 - s0 < 0.04:
+                    continue
+                mb.beam(P(base[0] + d[0] * s0, base[1] + d[1] * s0, rib_h / 2),
+                        P(base[0] + d[0] * s1, base[1] + d[1] * s1, rib_h / 2),
+                        rib_w, rib_h, up=nrm)
+    if frame:
+        for i in range(n):
+            a, b = poly[i], poly[(i + 1) % n]
+            mb.beam(P(a[0], a[1], rib_h / 2), P(b[0], b[1], rib_h / 2),
+                    rib_w * 2.2, rib_h, up=nrm)
+
+
+def _inset(poly, d):
+    """Offset a convex 2D polygon (either winding) inward by d."""
+    n = len(poly)
+    area = sum(poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1]
+               for i in range(n))
+    sg = 1.0 if area > 0 else -1.0
+    lines = []
+    for i in range(n):
+        a, b = poly[i], poly[(i + 1) % n]
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(ex, ey)
+        nx, ny = -ey / L * sg, ex / L * sg
+        lines.append(((a[0] + nx * d, a[1] + ny * d), (ex / L, ey / L)))
+    out = []
+    for i in range(n):
+        (p1, d1), (p2, d2) = lines[i - 1], lines[i]
+        den = d1[0] * d2[1] - d1[1] * d2[0]
+        if abs(den) < 1e-9:
+            out.append(p2)
+            continue
+        t = ((p2[0] - p1[0]) * d2[1] - (p2[1] - p1[1]) * d2[0]) / den
+        out.append((p1[0] + d1[0] * t, p1[1] + d1[1] * t))
+    return out
 # ===========================================================================
 # MATERIALS
 # ===========================================================================
@@ -413,11 +809,11 @@ def build_ota(root):
                  float(D.PM_CONIC), pm_z, c, n, M("Mirror"),
                  inner_dia=float(D.PM_BAFFLE_DIA))
     cyl("PM.Substrate", float(D.PM_DIA), 0.14, pm_z - 0.15, c, n,
-        verts=96, mat=M("ULE_Glass"))
+        verts=128, mat=M("ULE_Glass"))
 
     # AMS: 0.28 m ribbed composite box-panel structure  [PUB]
     cyl("AMS.Structure", float(D.AMS_DIA), float(D.AMS_THICK), ams_bot,
-        c, n, verts=64, mat=M("Composite"))
+        c, n, verts=96, mat=M("Composite"))
     for i in range(8):  # rib pattern, visual
         a = 2 * math.pi * i / 8
         box("AMS.Rib.%d" % (i + 1),
@@ -437,13 +833,13 @@ def build_ota(root):
 
     # stray-light baffle: AMS centre -> up through the PM centre  [PUB]
     cyl("PM.StrayLightBaffle", float(D.PM_BAFFLE_DIA), float(D.PM_BAFFLE_H),
-        ams_top, c, n, verts=48, mat=M("Baffle_Black"))
+        ams_top, c, n, verts=64, mat=M("Baffle_Black"))
 
     # ---- Forward Structure Assembly (FMS hoop + alignment drives) --------
     c = COLLS["TEL.ForwardStructureAssembly"]
     nf = empty("N.ForwardStructureAssembly", (0, 0, pm_z), c, root, 0.8)
     tube("FMS.Hoop", float(D.FMS_DIA), float(D.FMS_H), pm_z, 0.04, c, nf,
-         mat=M("Composite"))
+         verts=128, mat=M("Composite"))
 
     for i in range(int(D.FMS_ALIGN_DRIVES)):  # six actuators  [PUB]
         a = 2 * math.pi * i / int(D.FMS_ALIGN_DRIVES)
@@ -453,7 +849,7 @@ def build_ota(root):
                 float(D.SM_BASE_RADIUS) * math.sin(a)))
     # heaters around the PM perimeter  [PUB]
     tube("FMS.PerimeterHeaters", float(D.FMS_DIA) * 0.985, 0.05, pm_z + 0.02,
-         0.03, c, nf, mat=M("Structure_White"))
+         0.03, c, nf, verts=128, mat=M("Structure_White"))
 
     # ---- Secondary Mirror Assembly + hexapod -----------------------------
     # Strut length is PUBLISHED at ~2.4 m. Solve the rise; do not guess it.
@@ -463,24 +859,34 @@ def build_ota(root):
 
     base_z = pm_z + float(D.FMS_H)
     br, tr = float(D.SM_BASE_RADIUS), float(D.SM_TOP_RADIUS)
-    # skew must match the value the rise was SOLVED with in roman_dims,
-    # or the struts come out the wrong length. v2 hardcoded 14 deg here
-    # while solving radially -- gave 2.360 m against a published 2.400 m.
-    skew = math.radians(float(D.SM_STRUT_SKEW_DEG))
+    # Three V-pairs, one on the sun side, as V006 F shows them [S13]: feet
+    # spread wide on the hoop, heads drawn together at the secondary. The
+    # tangential turn of each strut (foot half-angle - head half-angle) is
+    # the skew the rise was SOLVED with in roman_dims; build with anything
+    # else and the struts come out the wrong length (v2 did: 2.360 m
+    # against a published 2.400 m).
+    fh = math.radians(float(D.SM_PAIR_FOOT_HALF_DEG))
+    hh = math.radians(float(D.SM_PAIR_HEAD_HALF_DEG))
     strut_top_z = base_z + float(D.SM_RISE)
     lengths = []
-    for i in range(int(D.SM_STRUTS)):
-        a_b = 2 * math.pi * i / int(D.SM_STRUTS)
-        a_t = a_b + (skew if i % 2 == 0 else -skew)
+    ends = []
+    for pc in D.SM_PAIR_CENTRES_DEG:
+        for sgn in (-1, 1):
+            ends.append((math.radians(pc) + sgn * fh, math.radians(pc) + sgn * hh))
+    for i, (a_b, a_t) in enumerate(ends[:int(D.SM_STRUTS)]):
         p0 = (br * math.cos(a_b), br * math.sin(a_b), base_z)
         p1 = (tr * math.cos(a_t), tr * math.sin(a_t), strut_top_z)
         lengths.append((Vector(p1) - Vector(p0)).length)
         strut(f"SMA.Strut.{i+1}", p0, p1, float(D.SM_STRUT_DIA), c, ns,
               M("Composite"))
-        # stray-light scrapers bonded under the strut blankets  [PUB]
-        mid = tuple((p0[k] + p1[k]) / 2 for k in range(3))
-        box(f"SMA.Scraper.{i+1}", (0.05, 0.012, 0.9), mid, c, ns,
-            M("Baffle_Black"), rot=(0, 0, a_b))
+        # stray-light scrapers bonded under the strut blankets  [PUB]:
+        # thin blades lying along each strut, on its outboard side
+        mb = MeshBuilder()
+        out = _unit((math.cos((a_b + a_t) / 2), math.sin((a_b + a_t) / 2), 0.0))
+        q0 = _add(_lerp(p0, p1, 0.18), _mul(out, 0.035))
+        q1 = _add(_lerp(p0, p1, 0.82), _mul(out, 0.035))
+        mb.beam(q0, q1, 0.012, 0.06, up=out)
+        mb.build(f"SMA.Scraper.{i+1}", c, ns, M("Baffle_Black"))
 
     print(f"[ota] hexapod strut lengths {min(lengths):.3f}-{max(lengths):.3f} m "
           f"(published ~{float(D.SM_STRUT_LEN):.2f} m)")
@@ -488,7 +894,7 @@ def build_ota(root):
     conic_mirror("SMA.Mirror", float(D.SM_DIA), 1.60, -1.8, sm_z, c, ns,
                  M("Mirror"), flip=True)
     cyl("SMA.Housing", float(D.SM_DIA) * 1.25, 0.20, sm_z, c, ns,
-        verts=48, mat=M("MLI_Silver"))
+        verts=64, mat=M("MLI_Silver"))
     for i in range(3):  # redundant fine-focus drives  [PUB]
         a = 2 * math.pi * i / 3
         cyl(f"SMA.FocusDrive.{i+1}", 0.05, 0.12, sm_z + 0.20, c, ns,
@@ -554,214 +960,705 @@ def build_ota(root):
     c = COLLS["TEL.Interfaces"]
     ni = empty("N.OTA_Interfaces", (0, 0, ams_bot), c, root, 0.4)
     ic_top = float(D.IC_Z0) + float(D.IC_H)
+    fr = float(D.FOA_FOOT_RADIUS)
     for i in range(int(D.FOA_STRUTS)):
         a = 2 * math.pi * i / int(D.FOA_STRUTS)
         aa = a + (0.20 if i % 2 == 0 else -0.20)
-        strut(f"FOA.Strut.{i+1}",
-              (float(D.IC_DIA) * 0.42 * math.cos(aa),
-               float(D.IC_DIA) * 0.42 * math.sin(aa), ic_top),
-              (float(D.AMS_DIA) * 0.45 * math.cos(a),
-               float(D.AMS_DIA) * 0.45 * math.sin(a), ams_bot),
+        foot = (fr * math.cos(aa), fr * math.sin(aa), ic_top)
+        head = (float(D.AMS_DIA) * 0.45 * math.cos(a),
+                float(D.AMS_DIA) * 0.45 * math.sin(a), ams_bot)
+        strut(f"FOA.Strut.{i+1}", foot, head,
               float(D.FOA_STRUT_DIA), c, ni, M("Composite"))
-        for zz in (ic_top, ams_bot):  # bearings at each strut end  [PUB]
-            cyl(f"FOA.Bearing.{i+1}.{'lo' if zz==ic_top else 'hi'}",
-                0.07, 0.05, zz - 0.025, c, ni, verts=16,
-                mat=M("Structure_White"),
-                xy=(float(D.IC_DIA) * 0.42 * math.cos(aa),
-                    float(D.IC_DIA) * 0.42 * math.sin(aa)))
+        # bearings at each strut end  [PUB] -- v2 put both at the foot
+        for tag, p in (("lo", foot), ("hi", head)):
+            cyl(f"FOA.Bearing.{i+1}.{tag}", 0.07, 0.05, p[2] - 0.025, c, ni,
+                verts=16, mat=M("Structure_White"), xy=(p[0], p[1]))
 
 
 # ===========================================================================
-# SPACECRAFT + INSTRUMENTS
+# SPACECRAFT + INSTRUMENTS  --  shaped against NASA's V006 renders [S13]
 # ===========================================================================
+#
+# Shared stations. Blender frame: +Z boresight, -Y sun side, and "height"
+# in the comments below means distance toward the Sun (h = -y).
 
-def build_spacecraft(root):
-    # ---- LVA -------------------------------------------------------------
+X_AX, Y_AX, Z_AX = (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)
+
+
+def _g():
+    """Numbers several builders share, read fresh from roman_dims."""
+    R_oba = float(D.OBA_DIA) / 2
+    R_bus = float(D.BUS_ACROSS_CORNERS) / 2
+    g = dict(
+        R_oba=R_oba, A_oba=R_oba * _SQ3 / 2,
+        R_bus=R_bus, A_bus=R_bus * _SQ3 / 2,
+        z_bus0=float(D.BUS_Z0), z_bus1=float(D.BUS_Z0) + float(D.BUS_H),
+        z_stand0=float(D.OBA_Z0),
+        z_barrel0=float(D.OBA_Z0) + float(D.STAND_H),
+        z_front=float(D.OBA_Z0) + float(D.OBA_H),
+        bore=float(D.OBA_BORE_DIA) / 2,
+    )
+    g["z_ring"] = g["z_front"] - float(D.OBA_RING_T)
+    # sun shield centre-plane, above the shroud's sun-side flat, and the
+    # lower sun shade's plane just over the bus, under the array's aft row
+    g["roof_y"] = -(g["A_oba"] + float(D.SASS_STANDOFF))
+    g["liss_y"] = -(g["A_bus"] + float(D.LISS_STANDOFF))
+    return g
+
+
+def build_lva(root):
     c = COLLS["OSS.LaunchVehicleAdapter"]
-    n = empty("N.LaunchVehicleAdapter", (0, 0, float(D.LVA_Z0)), c, root)
-    cone("LVA.Adapter", float(D.LVA_DIA_BOTTOM), float(D.LVA_DIA_TOP),
-         float(D.LVA_H), float(D.LVA_Z0), c, n, mat=M("Composite"))
+    z0 = float(D.LVA_Z0)
+    n = empty("N.LaunchVehicleAdapter", (0, 0, z0), c, root)
+    r, rf, h, w = (float(D.LVA_DIA_TOP) / 2, float(D.LVA_DIA_BOTTOM) / 2,
+                   float(D.LVA_H), 0.07)
+    mb = MeshBuilder()
+    # a short separation ring with a flange, CCW in (r, s)
+    mb.lathe([(r - w, 0.0), (rf, 0.0), (rf, 0.035), (r, 0.06), (r, h - 0.02),
+              (r + 0.02, h - 0.02), (r + 0.02, h), (r - w, h)],
+             (0, 0, z0), Z_AX, n=128)
+    for k in range(36):                              # flange bolt bosses
+        a = 2 * math.pi * (k + 0.5) / 36
+        mb.box(_polar(rf - 0.035, a, z0 + 0.045), (0.03, 0.03, 0.02),
+               ((math.cos(a), math.sin(a), 0), (-math.sin(a), math.cos(a), 0), Z_AX))
+    mb.build("LVA.Adapter", c, n, M("Composite"))
 
-    # ---- Bus -------------------------------------------------------------
+
+def build_bus(root):
+    G = _g()
     c = COLLS["OSS.PrimaryStructure"]
-    n = empty("N.Bus", (0, 0, float(D.BUS_Z0)), c, root)
-    cyl("BUS.Hex", float(D.BUS_ACROSS_CORNERS), float(D.BUS_H),
-        float(D.BUS_Z0), c, n, verts=6, mat=M("MLI_Silver"))
-    box("BUS.Radiator", (2.4, 0.04, 1.5),
-        (0, float(D.BUS_ACROSS_CORNERS) * 0.43,
-         float(D.BUS_Z0) + float(D.BUS_H) / 2), c, n, M("Radiator"))
+    z0, zt, R, A = G["z_bus0"], G["z_bus1"], G["R_bus"], G["A_bus"]
+    z1 = z0 + float(D.BUS_BOX_H)                     # top of the closed box
+    n = empty("N.Bus", (0, 0, z0), c, root)
+
+    # The prism itself. Built rather than taken from a 6-vertex cylinder:
+    # Blender's primitive starts its circle on +Y, which puts FLATS on +-X;
+    # V006 B shows corners there.
+    mb = MeshBuilder()
+    mb.prism(_hex_corners(R), (0, 0, z0), X_AX, Y_AX, Z_AX, z1 - z0)
+    mb.build("BUS.Hex", c, n, M("MLI_Silver"), bevel=True)
+
+    # Radiators on the three anti-sun faces, with heat-pipe ribs.
+    mb = MeshBuilder()
+    zc = z0 + (z1 - z0) * 0.52
+    for k in (0, 1, 2):                              # faces at 30, 90, 150 deg
+        nrm, tan = _hex_face(k)
+        base = _add(_mul(nrm, A + 0.015), (0, 0, zc))
+        mb.box(base, (0.03, R * 0.80, (z1 - z0) * 0.70), (nrm, tan, Z_AX))
+        for j in range(7):
+            u = (j - 3) * R * 0.11
+            mb.box(_add(_add(base, _mul(nrm, 0.02)), _mul(tan, u)),
+                   (0.015, 0.035, (z1 - z0) * 0.66), (nrm, tan, Z_AX))
+    mb.build("BUS.Radiator", c, n, M("Radiator"))
+
+    # Frames, corner posts, bay seams, avionics boxes, LISS hinge arms.
+    # Forward of the closed box the corner posts carry on as the open
+    # instrument bay's frame, up to the top deck under the telescope.
+    mb = MeshBuilder()
+    for k in range(6):
+        cx, cy = _hex_corner(R, k)
+        radial = _unit((cx, cy, 0.0))
+        mb.beam((cx, cy, z0), (cx, cy, zt), 0.08, 0.08, up=radial)
+        nrm, tan = _hex_face(k)
+        p0 = _hex_corner(R, k)
+        p1 = _hex_corner(R, k + 1)
+        for zz in (z0 + 0.04, z1 - 0.04, z0 + (z1 - z0) * 0.5, zt - 0.05):
+            off = _mul(nrm, 0.02)
+            mb.beam(_add((p0[0], p0[1], zz), off), _add((p1[0], p1[1], zz), off),
+                    0.07, 0.05, up=nrm)
+        # the bay's faces: a diagonal on each, the lower flanks excepted --
+        # the WFI and CGI enclosures stand there
+        if k in (1, 3, 4, 5):
+            mb.rod(_add((p0[0], p0[1], z1), _mul(nrm, -0.05)),
+                   _add((p1[0], p1[1], zt), _mul(nrm, -0.05)), 0.03, n=8)
+    # boxes on the sun-side flanks (faces 210 and 330 deg); the TCE sits on
+    # 330 deg, so its neighbours keep clear of it
+    for k, zs in ((3, (0.40, 0.80, 1.15)), (5, (0.30, 1.20))):
+        nrm, tan = _hex_face(k)
+        for m, zz in enumerate(zs):
+            u = (-0.35, 0.30, -0.10)[m % 3]
+            mb.box(_add(_add(_mul(nrm, A + 0.07), _mul(tan, u)), (0, 0, z0 + zz)),
+                   (0.14, 0.36, 0.28), (nrm, tan, Z_AX))
+    # aft-deck avionics: the column of units V006 B shows below the boom
+    for x, y, sx, sy in ((0.0, -0.35, 0.22, 0.20), (0.05, -0.62, 0.16, 0.22),
+                         (-0.18, 0.18, 0.22, 0.30), (0.20, 0.30, 0.20, 0.26),
+                         (0.02, 0.62, 0.16, 0.30), (-0.62, 0.55, 0.30, 0.26),
+                         (0.66, 0.55, 0.30, 0.26)):
+        mb.box((x, y, z0 - 0.06), (sx, sy, 0.12))
+    mb.build("BUS.Detail", c, n, M("Structure_White"))
+
+    # Isogrid: the aft deck's ring between hexagon and adapter, and the
+    # open shear panels on the sun side of the bay above the bus.
+    mb = MeshBuilder()
+    Ri = R - 0.06
+    _isogrid(mb, _hex_corners(Ri), (0, 0, z0), X_AX, Y_AX, (0, 0, -1.0),
+             spacing=0.26, rib_w=0.022, rib_h=0.03,
+             hole_r=float(D.LVA_DIA_BOTTOM) / 2 + 0.04)
+    mb.lathe([(float(D.LVA_DIA_BOTTOM) / 2 + 0.02, -0.035),
+              (float(D.LVA_DIA_BOTTOM) / 2 + 0.07, -0.035),
+              (float(D.LVA_DIA_BOTTOM) / 2 + 0.07, 0.0),
+              (float(D.LVA_DIA_BOTTOM) / 2 + 0.02, 0.0)],
+             (0, 0, z0), Z_AX, n=96)
+    Rs = (G["R_bus"] + G["R_oba"]) / 2 - 0.07
+    zb0, zb1 = z1 + 0.08, G["z_barrel0"] - 0.10       # the whole open bay
+    for k in (1, 3, 4, 5):                            # 90, 210, 270, 330 deg
+        nrm, tan = _hex_face(k)
+        half = Rs / 2 - 0.10
+        org = (nrm[0] * (Rs * _SQ3 / 2 - 0.08), nrm[1] * (Rs * _SQ3 / 2 - 0.08), 0.0)
+        _isogrid(mb, [(-half, zb0), (half, zb0), (half, zb1), (-half, zb1)],
+                 org, tan, Z_AX, _mul(nrm, -1.0), spacing=0.20,
+                 rib_w=0.018, rib_h=0.03)
+    mb.build("BUS.Isogrid", c, n, M("Composite"))
+
+    # Propulsion: thruster pods at the aft deck's corners and under the
+    # bus's forward end, where V006 B and L show them.
+    mb = MeshBuilder()
+
+    def pod(base, main):
+        main = _unit(main)
+        u, w = _frame(main)
+        mb.box(base, (0.18, 0.18, 0.12), (u, w, main))
+        for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            d = _unit(_add(main, _add(_mul(u, 0.5 * a), _mul(w, 0.5 * b))))
+            p0 = _add(_add(base, _mul(main, 0.05)), _add(_mul(u, 0.05 * a), _mul(w, 0.05 * b)))
+            mb.rod(p0, _add(p0, _mul(d, 0.13)), 0.018, n=12, r1=0.048)
+    for sx in (1, -1):
+        pod((sx * 0.72, -1.36, z0 - 0.07), (sx * 0.12, -0.10, -1.0))
+        pod((sx * 0.92, 1.30, z0 - 0.07), (sx * 0.12, 0.12, -1.0))
+        pod((sx * 0.72, A + 0.07, z1 + 0.55), (0.0, 1.0, 0.25))
+    mb.build("PROP.Thrusters", c, n, M("Structure_White"))
+
+    # Attitude control: star trackers with their baffles, on the aft
+    # sun-side corners, looking aft and outboard.
+    for i, (k, zz, u, look) in enumerate((
+            (3, 0.55, -0.30, (-0.72, -0.25, -0.62)),
+            (3, 1.00, 0.30, (-0.30, 0.10, -0.95)),
+            (5, 0.70, 0.30, (0.30, -0.15, -0.94)))):
+        nrm, tan = _hex_face(k)
+        base = _add(_add(_mul(nrm, A + 0.05), _mul(tan, u)), (0, 0, z0 + zz))
+        d = _unit(look)
+        mb = MeshBuilder()
+        mb.box(base, (0.24, 0.24, 0.10), (nrm, tan, Z_AX))
+        mb.lathe([(0.0, 0.0), (0.09, 0.0), (0.09, 0.22), (0.10, 0.22),
+                  (0.17, 0.46), (0.155, 0.46), (0.085, 0.25), (0.0, 0.25)],
+                 _add(base, _mul(d, 0.04)), d, n=24)
+        mb.build(f"ACS.StarTracker.{i+1}", c, n, M("Structure_White"))
+
     # Telescope Control Electronics: 17 boards, on the spacecraft element [PUB]
     # TCE is a TELESCOPE subpart [S6] though physically mounted on the
-    # spacecraft element [S3]. Filed under Telescope, built where it sits.
+    # spacecraft element [S3]. Filed under Telescope, built where it sits:
+    # on the bus's sun-side +X flank, clear of the LISS arms.
     tc = COLLS["TEL.TelescopeControlElectronics"]
-    box("TCE.Chassis", (0.45, 0.30, 0.55),
-        (0.9, -0.6, float(D.BUS_Z0) + 0.5), tc, n, M("Structure_White"))
+    nrm, tan = _hex_face(5)
+    p = _add(_mul(nrm, A + 0.15), (0, 0, z0 + 0.75))
+    box("TCE.Chassis", (0.30, 0.45, 0.55), p, tc, n, M("Structure_White"),
+        rot=(0, 0, math.radians(330)))
 
-    # ---- Comms -----------------------------------------------------------
-    # A 1.7 m dish [S10] on a boom that swings down from the bottom of the
-    # bus on the sun side, where Earth is seen from L2. The whole assembly
-    # is one deployable about the boom's root hinge; placement is schematic.
+
+def build_comms(root):
+    """The HGA as V006 shows it [S13]: a boom rising from the aft, sun-side
+    edge of the bus past the sun shield, a two-axis gimbal, and a 1.7 m
+    ribbed dish above the roof with its bowl toward the Sun and Earth. The
+    whole assembly is one deployable about the boom's root hinge."""
+    G = _g()
     c = COLLS["COMMUNICATIONS"]
-    bx = float(D.BUS_ACROSS_CORNERS) / 2
-    root_pt = Vector((0.0, -bx * 0.8, float(D.HGA_ROOT_Z)))
-    n = empty("N.Comms", tuple(root_pt), c, root)
-    down = math.radians(float(D.HGA_BOOM_DOWN_DEG))
+    pivot = (0.0, -(G["A_bus"] + 0.06), float(D.HGA_ROOT_Z))
+    n = empty("N.Comms", pivot, c, root)
+    tilt = math.radians(float(D.HGA_BOOM_TILT_DEG))
     L = float(D.HGA_BOOM_LEN)
-    tip = root_pt + Vector((0.0, -L * math.cos(down), -L * math.sin(down)))
+    bdir = (0.0, -math.cos(tilt), math.sin(tilt))
+    tip = _add(pivot, _mul(bdir, L))
     hga = []
-    hga.append(strut("HGA.Boom", tuple(root_pt), tuple(tip),
-                     float(D.HGA_BOOM_DIA), c, n, M("Composite")))
-    # Two-axis gimbal [S6] at the boom tip, then the dish facing the sun side.
-    for k, lbl in enumerate(("Azimuth", "Elevation")):
-        g = cyl(f"HGA.Gimbal{lbl}", float(D.HGA_GIMBAL_DIA), 0.08,
-                tip.z - 0.04 + k * 0.09, c, n, verts=24,
-                mat=M("Structure_White"), xy=(tip.x, tip.y - k * 0.06))
-        hga.append(g)
-    dish_c = tip + Vector((0.0, -0.18, -0.05))
-    dish = paraboloid_dish("HGA.Dish", float(D.HGA_DISH_DIA),
-                           float(D.HGA_DISH_DEPTH), tuple(dish_c), c, n,
-                           M("HGA_Carbon"))
-    dish.rotation_euler = (math.radians(90), 0, 0)   # aperture toward -Y
-    hga.append(dish)
-    f = float(D.HGA_DISH_DIA) ** 2 / (16 * float(D.HGA_DISH_DEPTH))
-    feed = dish_c + Vector((0.0, -f, 0.0))
+
+    mb = MeshBuilder()             # built, not a primitive: exact in the harness
+    mb.rod(pivot, tip, float(D.HGA_BOOM_DIA) / 2, n=20)
+    hga.append(mb.build("HGA.Boom", c, n, M("Composite")))
+    mb = MeshBuilder()                                # boom hardware
+    for s in (0.30, 0.62, 0.90):
+        p = _add(pivot, _mul(bdir, s * L))
+        mb.rod(_sub(p, _mul(bdir, 0.04)), _add(p, _mul(bdir, 0.04)),
+               float(D.HGA_BOOM_DIA) * 0.75, n=16)
+    for sx in (1, -1):                                # root clevis
+        mb.box(_add(pivot, (sx * 0.08, 0.02, 0.0)), (0.03, 0.16, 0.20))
+    mb.rod(_add(pivot, (-0.12, 0, 0)), _add(pivot, (0.12, 0, 0)), 0.03, n=12)
+    mb.box(_add(_add(pivot, _mul(bdir, 0.45 * L)), (0.09, 0, 0)), (0.10, 0.18, 0.12))
+    hga.append(mb.build("HGA.BoomFittings", c, n, M("Structure_White")))
+
+    gd = float(D.HGA_GIMBAL_DIA)
+    mb = MeshBuilder()
+    mb.rod(_sub(tip, _mul(bdir, 0.02)), _add(tip, _mul(bdir, 0.12)), gd / 2, n=24)
+    hga.append(mb.build("HGA.GimbalAzimuth", c, n, M("Structure_White")))
+    eg = _add(tip, (0.0, -0.20, 0.08))                # elevation axis along X
+    mb = MeshBuilder()
+    mb.rod(_add(eg, (-0.17, 0, 0)), _add(eg, (0.17, 0, 0)), gd * 0.36, n=24)
+    for sx in (1, -1):
+        mb.box(_add(eg, (sx * 0.15, 0.05, 0.0)), (0.03, 0.22, 0.16))
+    mb.box(_add(eg, (0.0, -0.10, 0.0)), (0.22, 0.06, 0.22))
+    hga.append(mb.build("HGA.GimbalElevation", c, n, M("Structure_White")))
+
+    # dish: a closed paraboloidal shell, CCW profile (r, s) along the bowl
+    # axis, so it cannot vanish under backface culling from behind
+    axis = (0.0, -1.0, 0.0)
+    R, dep, t = float(D.HGA_DISH_DIA) / 2, float(D.HGA_DISH_DEPTH), 0.025
+    vtx = _add(eg, (0.0, -0.16, 0.0))
+    NR = 24
+    front = [(R * i / NR, dep * (i / NR) ** 2) for i in range(NR + 1)]
+    back = [(r, s - t) for r, s in front]
+    prof = back + list(reversed(front))               # CCW: out along the back, in along the bowl
+    mb = MeshBuilder()
+    mb.lathe(prof, vtx, axis, n=96)
+    hga.append(mb.build("HGA.Dish", c, n, M("HGA_Carbon")))
+
+    # ribs on the dish's back, a rim ring and the central hub
+    mb = MeshBuilder()
+    u, w = _frame(axis)
+    nribs = int(D.HGA_DISH_RIBS)
+    for k in range(nribs):
+        a = 2 * math.pi * k / nribs
+        e = _add(_mul(u, math.cos(a)), _mul(w, math.sin(a)))
+        pts = []
+        for j in range(7):
+            rr = R * (0.12 + 0.87 * j / 6)
+            s = dep * (rr / R) ** 2 - t
+            slope = 2 * dep * rr / (R * R)
+            nb = _unit(_sub(_mul(e, slope), axis))    # back-side normal
+            pts.append((_add(_add(vtx, _mul(axis, s)), _mul(e, rr)), nb))
+        for (p0, n0), (p1, n1) in zip(pts, pts[1:]):
+            nm = _unit(_add(n0, n1))
+            mb.beam(_add(p0, _mul(n0, 0.022)), _add(p1, _mul(n1, 0.022)),
+                    0.016, 0.044, up=nm)
+    mb.lathe([(R - 0.02, dep - 0.07), (R + 0.015, dep - 0.07),
+              (R + 0.015, dep + 0.005), (R - 0.02, dep + 0.005)], vtx, axis, n=96)
+    mb.lathe([(0.0, -t - 0.10), (0.16, -t - 0.10), (0.18, -t), (0.0, -t)],
+             vtx, axis, n=32)
+    hga.append(mb.build("HGA.DishRibs", c, n, M("HGA_Carbon")))
+
+    f = float(D.HGA_DISH_DIA) ** 2 / (16 * dep)       # focal length
+    feed_base = _add(vtx, _mul(axis, f - 0.12))
     for k in range(int(D.HGA_FEED_STRUTS)):
         a = math.pi / 4 + k * math.pi / 2
-        rim = dish_c + Vector((float(D.HGA_DISH_DIA) / 2 * 0.92 * math.cos(a),
-                               -float(D.HGA_DISH_DEPTH),
-                               float(D.HGA_DISH_DIA) / 2 * 0.92 * math.sin(a)))
-        hga.append(strut(f"HGA.FeedStrut.{k+1}", tuple(rim), tuple(feed), 0.025,
-                         c, n, M("HGA_Carbon")))
-    hga.append(cyl("HGA.Feed", 0.12, 0.14, feed.z - 0.07, c, n, verts=16,
-                   mat=M("Structure_White"), xy=(feed.x, feed.y)))
+        rim = _add(_add(vtx, _mul(axis, dep * 0.96)),
+                   _add(_mul(u, R * 0.93 * math.cos(a)), _mul(w, R * 0.93 * math.sin(a))))
+        hga.append(strut(f"HGA.FeedStrut.{k+1}", rim, feed_base, 0.022, c, n,
+                         M("HGA_Carbon")))
+    mb = MeshBuilder()
+    mb.lathe([(0.0, 0.0), (0.05, 0.0), (0.05, 0.08), (0.09, 0.16), (0.0, 0.16)],
+             feed_base, axis, n=24)
+    hga.append(mb.build("HGA.Feed", c, n, M("Structure_White")))
+
     for o in hga:
-        _deployable(o, tuple(root_pt), 'X', float(D.HGA_STOWED_DEG))
-    for i, sx in enumerate((1, -1)):
-        cone(f"LGA.{i+1}", float(D.LGA_DIA), float(D.LGA_DIA) * 0.65, 0.22,
-             float(D.BUS_Z0) + 0.1, c, n, verts=24, mat=M("Structure_White"),
-             xy=(sx * float(D.BUS_ACROSS_CORNERS) * 0.4, 0))
+        _deployable(o, pivot, 'X', float(D.HGA_STOWED_DEG))
 
-    # ---- Outer Barrel Assembly ("house on stilts") -----------------------
+    # low-gain antennas: one on the aft deck, one on the bus's sun-side top
+    for i, (base, d) in enumerate((((0.55, 1.05, G["z_bus0"]), (0, 0, -1.0)),
+                                   ((0.45, -G["A_bus"], G["z_bus0"] + 0.12), (0, -1.0, 0)))):
+        mb = MeshBuilder()
+        mb.lathe([(0.0, 0.0), (float(D.LGA_DIA) / 2, 0.0),
+                  (float(D.LGA_DIA) / 2 * 0.65, 0.20), (0.0, 0.21)],
+                 base, d, n=24)
+        mb.build(f"LGA.{i+1}", c, n, M("Structure_White"))
+
+    # RF communications electronics on the aft deck, where V006 B's comms
+    # overlay puts them
+    mb = MeshBuilder()
+    z0 = G["z_bus0"]
+    for x, y, sx, sy in ((0.52, -0.80, 0.34, 0.40), (-0.62, -0.80, 0.16, 0.26),
+                         (-0.32, -0.80, 0.16, 0.26), (-0.85, -0.22, 0.32, 0.30),
+                         (-0.45, -0.22, 0.30, 0.32), (0.42, -0.22, 0.30, 0.30),
+                         (0.84, -0.22, 0.28, 0.28)):
+        mb.box((x, y, z0 - 0.07), (sx, sy, 0.14))
+        mb.box((x, y - sy / 2 + 0.04, z0 - 0.16), (sx * 0.5, 0.04, 0.04))
+    mb.build("COMMS.Electronics", c, n, M("MLI_Silver"))
+
+
+def build_oba(root):
+    """The Outer Barrel Assembly as V006 shows it [S13]: a hexagonal shroud,
+    corners at +-X and a flat under the sun shield, around a round bore; four
+    external frames; a front ring whose lower edge follows the hex down to a
+    stepped keel; all on a short open truss bay -- the 'elephant stand' [S2]
+    -- that meets the bus's top deck."""
+    G = _g()
     c = COLLS["TEL.OuterBarrelAssembly"]
-    n = empty("N.OuterBarrelAssembly", (0, 0, float(D.OBA_Z0)), c, root, 1.0)
-    for i in range(int(D.STAND_LEGS)):
-        a = 2 * math.pi * i / int(D.STAND_LEGS)
-        r = float(D.OBA_DIA) / 2 - 0.15
-        cyl(f"OBA.StandLeg.{i+1}", float(D.STAND_LEG_DIA), float(D.STAND_H),
-            float(D.OBA_Z0), c, n, verts=16, mat=M("Composite"),
-            xy=(r * math.cos(a), r * math.sin(a)))
-    bz = float(D.OBA_Z0) + float(D.STAND_H)
-    bh = float(D.OBA_H) - float(D.STAND_H)
-    tube("OBA.Barrel", float(D.OBA_DIA), bh, bz, float(D.OBA_WALL), c, n,
-         mat=M("MLI_Barrel"))
+    n = empty("N.OuterBarrelAssembly", (0, 0, G["z_stand0"]), c, root, 1.0)
+    R, A, rb = G["R_oba"], G["A_oba"], G["bore"]
+    zs0, zb0, zr, zf = G["z_stand0"], G["z_barrel0"], G["z_ring"], G["z_front"]
+
+    # ---- the stand: six corner longerons + the truss that braces them ----
+    for k in range(int(D.STAND_LEGS)):
+        a = math.radians(60 * k)
+        strut(f"OBA.StandLeg.{k+1}",
+              _polar(G["R_bus"] - 0.07, a, zs0), _polar(R - 0.07, a, zb0),
+              float(D.STAND_LEG_DIA), c, n, M("Composite"))
+    mb = MeshBuilder()
+    lo, hi = zs0 + 0.07, zb0 - 0.07
+    for k in range(6):
+        a0, a1 = math.radians(60 * k), math.radians(60 * (k + 1))
+        b0, b1 = _polar(G["R_bus"] - 0.07, a0, lo), _polar(G["R_bus"] - 0.07, a1, lo)
+        t0, t1 = _polar(R - 0.07, a0, hi), _polar(R - 0.07, a1, hi)
+        mb.rod(b0, b1, 0.04, n=10)
+        mb.rod(t0, t1, 0.04, n=10)
+        if k in (1, 3, 4, 5):     # the lower-flank faces carry the WFI and CGI
+            mb.rod(b0, t1, 0.035, n=10)
+            mb.rod(b1, t0, 0.035, n=10)
+            mid = _lerp(_lerp(b0, t1, 0.5), _lerp(b1, t0, 0.5), 0.5)
+            mb.box(mid, (0.10, 0.10, 0.10))
+        for p in (b0, t0):
+            mb.box(p, (0.13, 0.13, 0.12))
+    # keel struts: the front ring's keel braced back to the barrel's belly
+    keel_y = float(D.OBA_KEEL_DEPTH) - 0.50
+    for sx in (1, -1):
+        mb.rod((sx * 0.25, keel_y, zr - 0.05),
+               (sx * 0.55, A + 0.05, zb0 + (zr - zb0) * 0.55), 0.035, n=10)
+    mb.build("OBA.Truss", c, n, M("Composite"))
+
+    # ---- the shroud: hexagon outside, round bore inside, one closed solid.
+    # Sampled at matching angles so the hex corners are exact vertices.
+    mb = MeshBuilder()
+    N = 96
+    ang = [2 * math.pi * j / N for j in range(N)]
+    o0 = [mb.v(_polar(_hex_r(R, a), a, zb0)) for a in ang]
+    o1 = [mb.v(_polar(_hex_r(R, a), a, zr)) for a in ang]
+    i0 = [mb.v(_polar(rb, a, zb0)) for a in ang]
+    i1 = [mb.v(_polar(rb, a, zr)) for a in ang]
+    for j in range(N):
+        k = (j + 1) % N
+        radial = _polar(1.0, 2 * math.pi * (j + 0.5) / N)
+        mb.face([o0[j], o0[k], o1[k], o1[j]], want=radial)
+        mb.face([i0[j], i0[k], i1[k], i1[j]], want=_mul(radial, -1.0))
+        mb.face([o0[j], o0[k], i0[k], i0[j]], want=(0, 0, -1.0))
+        mb.face([o1[j], o1[k], i1[k], i1[j]], want=(0, 0, 1.0))
+    mb.build("OBA.Barrel", c, n, M("MLI_Barrel"))
+
+    # ---- front ring: the visor's footprint above, the hex below, a keel.
+    W0 = float(D.DAC_DIA_BASE) / 2 + 0.04
+    E0, A0 = float(D.DAC_EAVE_H) + 0.03, float(D.DAC_APEX_H) + 0.05
+    hb = -float(D.DAC_WALL_BOTTOM)
+    kd = float(D.OBA_KEEL_DEPTH)
+    bot = -(A + 0.07)                                  # just below the hex's belly
+    # keel: a wide step, then a narrow tongue (V006 F, camera-fitted)
+    half = [(0.0, A0), (W0, E0), (W0, hb), (R / 2 + 0.30, bot), (0.93, bot),
+            (0.93, -(kd - 0.40)), (0.24, -(kd - 0.40)), (0.24, -kd)]
+    outline = half + [(-x, h) for x, h in reversed(half) if x > 0]
+    outline = [(x, -h) for x, h in outline]           # height -> Blender y
+    outline = _subdivide(outline, 0.16)
+    hole = [(rb * math.cos(2 * math.pi * j / 128), rb * math.sin(2 * math.pi * j / 128))
+            for j in range(128)]
+    mb = MeshBuilder()
+    mb.plate_with_hole(outline, hole, (0, 0, zr), X_AX, Y_AX, Z_AX, zf - zr)
+    mb.build("OBA.FrontRing", c, n, M("MLI_Barrel"))
+
+    # ---- external frames and corner longerons -------------------------------
+    mb = MeshBuilder()
+    Lb = zr - zb0
+    for fr in tuple(D.OBA_FRAME_STATIONS) + (1.0,):
+        zc = zb0 + 0.05 + fr * (Lb - 0.10)
+        for k in range(6):
+            nrm, tan = _hex_face(k)
+            p0, p1 = _hex_corner(R, k), _hex_corner(R, k + 1)
+            e = _unit((p1[0] - p0[0], p1[1] - p0[1], 0.0))
+            off = _mul(nrm, 0.03)
+            mb.beam(_add(_sub((p0[0], p0[1], zc), _mul(e, 0.03)), off),
+                    _add(_add((p1[0], p1[1], zc), _mul(e, 0.03)), off),
+                    0.10, 0.06, up=nrm)
+    for k in range(6):
+        cx, cy = _hex_corner(R, k)
+        mb.beam((cx, cy, zb0), (cx, cy, zr), 0.09, 0.09, up=_unit((cx, cy, 0.0)))
+    mb.build("OBA.Frames", c, n, M("MLI_Silver"))
+
+    # ---- brackets and fittings: frame/corner nodes, keel fittings ----------
+    mb = MeshBuilder()
+    for fr in D.OBA_FRAME_STATIONS:
+        zc = zb0 + 0.05 + fr * (Lb - 0.10)
+        for k in range(6):
+            cx, cy = _hex_corner(R, k)
+            rad = _unit((cx, cy, 0.0))
+            tan = (-rad[1], rad[0], 0.0)
+            mb.box(_add((cx, cy, zc), _mul(rad, 0.06)), (0.10, 0.14, 0.16),
+                   (rad, tan, Z_AX))
+            mb.rod(_add((cx, cy, zc - 0.10), _mul(rad, 0.09)),
+                   _add((cx, cy, zc + 0.10), _mul(rad, 0.09)), 0.025, n=8)
+        for k in range(6):                            # mid-face clips
+            nrm, tan = _hex_face(k)
+            mb.box(_add(_mul(nrm, A + 0.07), (0, 0, zc)), (0.05, 0.22, 0.12),
+                   (nrm, tan, Z_AX))
+    for x in (-0.62, -0.30, 0.30, 0.62):             # keel fittings, aft side
+        mb.box((x, kd - 0.55, zr - 0.07), (0.16, 0.20, 0.14))
+        mb.rod((x, kd - 0.55, zr - 0.14), (x, kd - 0.55, zr - 0.30), 0.03, n=10)
+    for sx in (1, -1):
+        mb.box((sx * 0.12, kd - 0.14, zr - 0.08), (0.14, 0.18, 0.16))
+        mb.box((sx * 1.05, A + 0.12, zr - 0.08), (0.20, 0.16, 0.16))   # corner tabs
+    mb.build("OBA.Brackets", c, n, M("Structure_White"))
+
+    # Aft closeout: an annulus at the primary's rim, from just outside the
+    # forward metering hoop to the bore wall, so the bore reads closed
+    # behind the mirror, as V006 F does, instead of open onto the bay.
+    mb = MeshBuilder()
+    zc = float(D.PM_Z) - 0.06
+    ring = lambda r, n: [(r * math.cos(2 * math.pi * j / n), r * math.sin(2 * math.pi * j / n))
+                         for j in range(n)]
+    mb.plate_with_hole(ring(rb + 0.02, 128), ring(float(D.FMS_DIA) / 2 + 0.03, 128),
+                       (0, 0, zc), X_AX, Y_AX, Z_AX, 0.03)
+    mb.build("OBA.AftCloseout", c, n, M("Baffle_Black"))
+
     # Annular vanes, not discs: a solid disc here would block the beam.
-    for i in range(4):
-        tube(f"OBA.Baffle.{i+1}", float(D.OBA_DIA) - 2 * float(D.OBA_WALL),
-             0.02, bz + (i + 1) * bh / 5, float(D.OBA_VANE_W), c, n,
-             mat=M("Baffle_Black"))
+    nv = int(D.OBA_VANES)
+    for i in range(nv):
+        tube(f"OBA.Baffle.{i+1}", 2 * rb, 0.02, zr - 0.14 - i * 0.24,
+             float(D.OBA_VANE_W), c, n, verts=128, mat=M("Baffle_Black"))
 
-    # ---- Deployable Aperture Cover [S6] --------------------------------
-    # NOT a rigid cone. NASA: "deployed once in orbit using a soft
-    # material attached to support booms". Built as booms plus a thin
-    # membrane skin; earlier passes solidified a cone shell.
+
+def build_dac(root):
+    """The Deployable Aperture Cover as a gabled scoop [S6][S13].
+
+    Soft membrane on three booms: one along the ridge, one along each eave.
+    The section is a straight gable -- two roof panels, two side walls --
+    and the mouth is cut on a slant: the walls from the end of their short
+    lower edge up to the eave corners, the roof on to the ridge's tip. Each
+    side's cut edge therefore runs
+    skirt -> eave corner -> ridge tip, the kinked edge V006 L shows, and
+    the eave booms end at the kink. The web viewer stows
+    the cover by scaling its pivot along the axis about the base, which
+    turns this into a short collar with the same slanted mouth.
+    """
+    G = _g()
     c = COLLS["TEL.DeployableApertureCover"]
-    h = float(D.DAC_H_DEPLOYED if DEPLOYED else D.DAC_H_STOWED)
-    n = empty("N.DeployableApertureCover", (0, 0, float(D.DAC_Z0)), c, root, 1.0)
-    dac = cone("DAC.Membrane", float(D.DAC_DIA_BASE), float(D.DAC_DIA_TOP), h,
-               float(D.DAC_Z0), c, n, verts=96, mat=M("Visor"),
-               fill='NOTHING')           # a visor, open at the top
-    _wall(dac, 0.004)                    # membrane, not structure
-    for i in range(int(D.DAC_BOOMS)):
-        a = 2 * math.pi * i / int(D.DAC_BOOMS)
-        strut(f"DAC.SupportBoom.{i+1}",
-              (float(D.DAC_DIA_BASE) / 2 * math.cos(a),
-               float(D.DAC_DIA_BASE) / 2 * math.sin(a), float(D.DAC_Z0)),
-              (float(D.DAC_DIA_TOP) / 2 * math.cos(a),
-               float(D.DAC_DIA_TOP) / 2 * math.sin(a), float(D.DAC_Z0) + h),
-              float(D.DAC_BOOM_DIA), c, n, M("Composite"))
+    z0 = float(D.DAC_Z0)
+    z1 = z0 + float(D.DAC_H_DEPLOYED if DEPLOYED else D.DAC_H_STOWED)
+    k_len = (z1 - z0) / float(D.DAC_H_DEPLOYED)
+    n = empty("N.DeployableApertureCover", (0, 0, z0), c, root, 1.0)
+    W = float(D.DAC_DIA_BASE) / 2
+    E, A = float(D.DAC_EAVE_H), float(D.DAC_APEX_H)
+    hb = -float(D.DAC_WALL_BOTTOM)
+    zk = z0 + float(D.DAC_SKIRT_LEN) * k_len
 
-    # ---- Solar Array Sun Shield: SIX panels [S6][S7] --------------------
-    # Two centre panels fixed flat to the OBA; four outer panels hinged,
-    # folded down against the OBA for launch, swinging up in orbit to
-    # align with the centre pair. Earlier passes built two splayed wings,
-    # which is the wrong count, topology and deployment behaviour.
-    # Laid out as the integration photos show it [S9]: three columns by two
-    # rows. The centre column's pair is fixed; each outer column is hinged at
-    # the centre column's edge and folds back toward the barrel for launch,
-    # as deep as it can go before touching it (SASS_FOLD_DEG, solved).
+    ze = z0 + float(D.DAC_EAVE_REACH) * k_len          # eave corners
+
+    def z_cut(h):                                     # the slanted mouth
+        if h <= E:                                    # walls: skirt -> eave
+            return zk + (h - hb) * (ze - zk) / (E - hb)
+        return ze + (h - E) * (z1 - ze) / (A - E)     # roof: eave -> ridge tip
+
+    # section, right half then left, as (x, h): wall bottom -> eave -> ridge
+    MW, MR, NZ = 6, 6, 16
+    half = [(W, hb + (E - hb) * r / MW) for r in range(MW)]
+    half += [(W * (1 - q / MR), E + (A - E) * q / MR) for q in range(MR)]
+    sec = [(x, h) for x, h in half] + [(0.0, A)] + [(-x, h) for x, h in reversed(half)]
+    # outward hint per section edge: walls face +-X, roof faces up and out
+    mb = MeshBuilder()
+    grid = []
+    for x, h in sec:
+        ze_i = z_cut(h) if h > hb + 1e-9 else zk
+        col = []
+        # the wall bottom's line runs z0 -> zk; every other line z0 -> its cut
+        for t in range(NZ + 1):
+            col.append(mb.v((x, -h, z0 + (ze_i - z0) * t / NZ)))
+        grid.append(col)
+    for i in range(len(sec) - 1):
+        (xa, ha), (xb, hb_) = sec[i], sec[i + 1]
+        mx = (xa + xb) / 2
+        if abs(xa - xb) < 1e-9:
+            want = (1.0 if mx > 0 else -1.0, 0.0, 0.0)
+        else:
+            want = (0.45 if mx > 0 else -0.45, -0.9, 0.0)
+        for t in range(NZ):
+            mb.face([grid[i][t], grid[i + 1][t], grid[i + 1][t + 1], grid[i][t + 1]],
+                    want=want)
+    dac = mb.build("DAC.Membrane", c, n, M("Visor"))
+    _wall(dac, 0.012)                                 # membrane, not structure
+
+    # booms: the ridge's runs to the tip, the eaves' to the mouth
+    zt = z1 - 0.05
+    booms = [((0.0, -(A - 0.07), z0), (0.0, -(A - 0.07), zt))]
+    for sx in (1, -1):
+        booms.append(((sx * (W - 0.07), -(E - 0.03), z0),
+                      (sx * (W - 0.07), -(E - 0.03), ze - 0.06)))
+    for i, (p0, p1) in enumerate(booms[:int(D.DAC_BOOMS)]):
+        strut(f"DAC.SupportBoom.{i+1}", p0, p1, float(D.DAC_BOOM_DIA), c, n,
+              M("Composite"))
+
+    # rim tubes on the mouth and the lower edges, boom-end fittings, base
+    # attachment brackets and the wall-foot hinges V006 F shows
+    mb = MeshBuilder()
+    r_rim, ins = 0.022, 0.03
+    for sx in (1, -1):
+        xw = sx * (W - ins)
+        mb.rod((xw, -hb, z0 + 0.02), (xw, -hb, zk), r_rim)
+        mb.rod((xw, -hb, zk), (xw, -E, ze - ins), r_rim)
+        mb.rod((xw, -E, ze - ins), (0.0, -(A - 0.02), z1 - ins), r_rim)
+        mb.rod((xw, -hb, z0 + 0.03), (xw, -E, z0 + 0.03), r_rim)
+        mb.rod((xw, -E, z0 + 0.03), (0.0, -A, z0 + 0.03), r_rim)
+        mb.box((sx * (W - 0.10), -(hb + 0.08), z0 + 0.06), (0.14, 0.16, 0.10))
+        mb.rod((sx * (W - 0.06), -(hb + 0.10), z0 + 0.02),
+               (sx * (W - 0.06), -(hb + 0.10), z0 + 0.20), 0.05, n=12)
+    for p0, p1 in booms:
+        mb.lathe([(0.0, 0.0), (0.085, 0.0), (0.085, 0.045), (0.0, 0.045)],
+                 _sub(p1, (0, 0, 0.02)), Z_AX, n=20)
+        mb.box(_add(p0, (0, 0, 0.07)), (0.18, 0.18, 0.12))
+    mb.build("DAC.Frame", c, n, M("Structure_White"))
+
+
+def build_sass(root):
+    """Six panels, three columns by two rows [S6][S7][S9], as a flat roof
+    just proud of the shroud's sun-side flat [S13]. The centre column is
+    that flat's width and fixed to it; each outer column is hinged at the
+    flat's corner and folds down onto the sloping upper facet for launch."""
+    G = _g()
     c = COLLS["SOLAR_ARRAY_SUN_SHIELD"]
     n = empty("N.SolarArraySunShield", (0, 0, float(D.SASS_Z0)), c, root, 1.0)
-    obar = float(D.OBA_DIA) / 2
     cw = float(D.SASS_COL_W)
-    ph = float(D.SASS_H)
-    rh = ph / int(D.SASS_ROWS)
+    ow = float(D.SASS_OUTER_W)
+    rh = float(D.SASS_H) / int(D.SASS_ROWS)
     t = float(D.SASS_PANEL_T)
     gap = 0.03
-    plane_y = -(obar + float(D.SASS_STANDOFF))
+    plane_y = G["roof_y"]
     fold = float(D.SASS_FOLD_DEG)
+    ch = float(D.SASS_CHAMFER)
+    det = MeshBuilder()
 
     for j in range(int(D.SASS_ROWS)):
-        zc = float(D.SASS_Z0) + j * rh + rh / 2
+        za = float(D.SASS_Z0) + j * rh + gap / 2
+        zb = za + rh - gap
+        zc = (za + zb) / 2
         box(f"SASS.Centre.{j+1}", (cw - gap, t, rh - gap), (0, plane_y, zc),
             c, n, M("SolarArray"))
-        # Standoff struts from the centre panels back to the barrel.
+        # the centre panels' underside frame and junction boxes
+        yb = plane_y + t / 2 + 0.025
+        for x0, x1, z_a, z_b in ((-cw / 2 + 0.03, cw / 2 - 0.03, za + 0.03, za + 0.03),
+                                 (-cw / 2 + 0.03, cw / 2 - 0.03, zb - 0.03, zb - 0.03),
+                                 (-cw / 2 + 0.03, -cw / 2 + 0.03, za + 0.03, zb - 0.03),
+                                 (cw / 2 - 0.03, cw / 2 - 0.03, za + 0.03, zb - 0.03),
+                                 (0.0, 0.0, za + 0.03, zb - 0.03)):
+            det.beam((x0, yb, z_a), (x1, yb, z_b), 0.04, 0.05, up=(0, 1, 0))
+        for x in (-0.55, 0.55):
+            det.box((x, yb + 0.02, zc + 0.6), (0.20, 0.08, 0.14))
+        # Standoff struts from the centre panels down to the barrel's flat.
         for sx in (-1, 1):
             strut(f"SASS.Standoff.{j+1}{'A' if sx < 0 else 'B'}",
-                  (sx * cw * 0.3, plane_y + t / 2, zc),
-                  (sx * cw * 0.3, -math.sqrt(max(obar ** 2 - (cw * 0.3) ** 2, 0)), zc),
+                  (sx * cw * 0.28, plane_y + t / 2, zc), (sx * cw * 0.28, -G["A_oba"], zc),
                   0.05, c, n, M("Composite"))
         for sx in (1, -1):
             hinge_x = sx * cw / 2
+            x_in, x_out = hinge_x + sx * gap / 2, hinge_x + sx * (gap / 2 + ow - gap)
+            # outline in (x, z): chamfer the outboard corner at the array's ends
+            cut_aft, cut_fore = (j == 0), (j == int(D.SASS_ROWS) - 1)
+            poly = [(x_in, za)]
+            if cut_aft:
+                poly += [(x_out - sx * ch, za), (x_out, za + ch)]
+            else:
+                poly += [(x_out, za)]
+            if cut_fore:
+                poly += [(x_out, zb - ch), (x_out - sx * ch, zb)]
+            else:
+                poly += [(x_out, zb)]
+            poly += [(x_in, zb)]
+            mb = MeshBuilder()
+            mb.prism(poly, (0, plane_y - t / 2, 0), X_AX, Z_AX, Y_AX, t)
+            # its own underside rails, so they fold with it
+            yr = plane_y + t / 2 + 0.02
+            rp = _inset(poly, 0.035)                  # rails stay inside the edge
+            for a, b in zip(rp, rp[1:] + rp[:1]):
+                mb.beam((a[0], yr, a[1]), (b[0], yr, b[1]), 0.035, 0.04, up=(0, 1, 0))
+            mb.beam(((x_in + x_out) / 2, yr, za + 0.05), ((x_in + x_out) / 2, yr, zb - 0.05),
+                    0.035, 0.04, up=(0, 1, 0))
+            lo_x, hi_x = min(x_in, x_out), max(x_in, x_out)
+            panel = mb.build(f"SASS.Outer.{'PX' if sx > 0 else 'NX'}.{j+1}", c, n,
+                             M("SolarArray"), fit=((0, lo_x, hi_x), (2, za, zb)),
+                             bevel=True)
             ang = sx * math.radians(fold) if SASS_STOWED else 0.0
-            panel = box(f"SASS.Outer.{'PX' if sx > 0 else 'NX'}.{j+1}",
-                        (cw - gap, t, rh - gap),
-                        # gap on the hinge side: the outer edge lands
-                        # exactly on the published width
-                        (hinge_x + sx * (cw + gap) / 2, plane_y, zc),
-                        c, n, M("SolarArray"), rot=(0, 0, ang))
+            if ang:
+                panel.rotation_euler = (0, 0, ang)
             _deployable(panel, (hinge_x, plane_y, zc), 'Z', sx * fold)
             cyl(f"SASS.Hinge.{'PX' if sx > 0 else 'NX'}.{j+1}",
                 0.05, rh * 0.9, zc - rh * 0.45, c, n,
                 verts=12, mat=M("Structure_White"), xy=(hinge_x, plane_y))
+            for zz in (za + 0.3, zc, zb - 0.3):       # hinge brackets
+                det.box((hinge_x, plane_y + 0.06, zz), (0.10, 0.10, 0.10))
+    # The array rides on the barrel's frames, as V006 L/R show: an A-frame
+    # bracket up from each frame station at both top corners of the shroud.
+    Lb = G["z_ring"] - G["z_barrel0"]
+    yb, yt = -G["A_oba"], plane_y + t / 2 + 0.02
+    for fr in D.OBA_FRAME_STATIONS:
+        zc = G["z_barrel0"] + 0.05 + fr * (Lb - 0.10)
+        if not float(D.SASS_Z0) < zc < float(D.SASS_Z0) + float(D.SASS_H):
+            continue
+        for sx in (1, -1):
+            x0 = sx * (G["R_oba"] / 2 - 0.05)
+            det.beam((x0, yb, zc - 0.16), (x0 - sx * 0.10, yt, zc), 0.06, 0.05, up=(1, 0, 0))
+            det.beam((x0, yb, zc + 0.16), (x0 - sx * 0.10, yt, zc), 0.06, 0.05, up=(1, 0, 0))
+            det.box((x0 - sx * 0.10, yt - 0.03, zc), (0.16, 0.06, 0.20))
+    det.build("SASS.Detail", c, n, M("Structure_White"))
 
-    # ---- Lower Instrument Sun Shade [S6][S8] ---------------------------
-    # Two deployable panels on the bus. Missing from every previous pass.
+
+def build_liss(root):
+    """Two 2.1 m panels [S6][S8] in the sun shield's plane over the bus
+    [S13], hinged at the bus's sun-side corners and swung out to the
+    array's span, as V006 draws them; for launch they fold down onto the
+    bus's sloping upper facets."""
+    G = _g()
     c = COLLS["OSS.LowerInstrumentSunShade"]
-    n = empty("N.LowerInstrumentSunShade", (0, 0, float(D.LISS_Z0)), c, root, 0.6)
+    z0 = float(D.LISS_Z0)
+    n = empty("N.LowerInstrumentSunShade", (0, 0, z0), c, root, 0.6)
     lw, lh, lt = float(D.LISS_PANEL_W), float(D.LISS_PANEL_H), float(D.LISS_PANEL_T)
-    # Two 2.10 m panels only fit inside the published 4.40 m width if they
-    # SPAN it side by side (2 x 2.10 = 4.20 m) rather than hanging off the
-    # bus flanks. Hanging them off the flanks put the observatory at
-    # 5.55 m wide -- caught by test_harness.py. They therefore tilt about
-    # X, away from the sun side, not about Z.
-    a = math.radians(float(D.LISS_OPEN_DEG))
-    hinge_y = -(float(D.BUS_ACROSS_CORNERS) / 2 + float(D.LISS_HINGE_GAP))
+    y = G["liss_y"]
+    ch = float(D.LISS_CHAMFER)
     for i, sx in enumerate((1, -1)):
-        liss = box(f"LISS.Panel.{i+1}", (lw, lt, lh),
-                   (sx * lw / 2, hinge_y - lh / 2 * math.sin(a),
-                    float(D.LISS_Z0) + lh / 2 * math.cos(a)),
-                   c, n, M("MLI_Silver"), rot=(a, 0, 0))
-        # Stowed = standing flat against the bus, i.e. the deploy angle undone.
-        _deployable(liss, (sx * lw / 2, hinge_y, float(D.LISS_Z0)), 'X',
-                    -float(D.LISS_OPEN_DEG))
-        cyl(f"LISS.Hinge.{i+1}", 0.07, lw * 0.92, float(D.LISS_Z0), c, n,
-            verts=12, mat=M("Composite"), rot=(0, math.radians(90), 0),
-            xy=(sx * lw / 2,
-                -(float(D.BUS_ACROSS_CORNERS) / 2 + float(D.LISS_HINGE_GAP))))
+        x_in = sx * (G["R_bus"] / 2 + 0.03)
+        pivot_x = sx * G["R_bus"] / 2
+        stowed = sx * float(D.LISS_OPEN_DEG)          # down onto the upper facet
+        x_out = x_in + sx * lw
+        poly = [(x_in, z0), (x_out - sx * ch, z0), (x_out, z0 + ch),
+                (x_out, z0 + lh), (x_in, z0 + lh)]
+        mb = MeshBuilder()
+        mb.prism(poly, (0, y - lt / 2, 0), X_AX, Z_AX, Y_AX, lt)
+        yr = y + lt / 2 + 0.02
+        rp = _inset(poly, 0.035)
+        for a, b in zip(rp, rp[1:] + rp[:1]):
+            mb.beam((a[0], yr, a[1]), (b[0], yr, b[1]), 0.04, 0.04, up=(0, 1, 0))
+        for f in (0.33, 0.66):
+            xm = x_in + (x_out - x_in) * f
+            mb.beam((xm, yr, z0 + 0.05), (xm, yr, z0 + lh - 0.05), 0.03, 0.035, up=(0, 1, 0))
+        zc = z0 + lh / 2
+        liss = mb.build(f"LISS.Panel.{i+1}", c, n, M("MLI_Silver"), bevel=True)
+        _deployable(liss, (pivot_x, y, zc), 'Z', stowed)
+        cyl(f"LISS.Hinge.{i+1}", 0.07, lh * 0.92, z0 + lh * 0.04, c, n,
+            verts=12, mat=M("Composite"), xy=(pivot_x - sx * 0.005, y + 0.035))
+
+
+def build_spacecraft(root):
+    build_lva(root)
+    build_bus(root)
+    build_comms(root)
+    build_oba(root)
+    build_dac(root)
+    build_sass(root)
+    build_liss(root)
 
 
 def build_instruments(root):
+    G = _g()
     c = COLLS["INSTRUMENT_CARRIER"]
     n = empty("N.InstrumentCarrier", (0, 0, float(D.IC_Z0)), c, root)
     cyl("IC.Deck", float(D.IC_DIA), float(D.IC_H), float(D.IC_Z0), c, n,
-        verts=48, mat=M("Composite"))
+        verts=96, mat=M("Composite"))
+    ic_top = float(D.IC_Z0) + float(D.IC_H)
+    mb = MeshBuilder()                                # units on the deck's sun half
+    for deg, r, sz in ((205, 1.22, (0.34, 0.26, 0.30)), (232, 1.15, (0.28, 0.24, 0.22)),
+                       (270, 1.20, (0.44, 0.30, 0.34)), (308, 1.15, (0.28, 0.24, 0.26)),
+                       (335, 1.22, (0.34, 0.26, 0.30)), (270, 0.62, (0.30, 0.30, 0.18))):
+        a = math.radians(deg)
+        rad, tan = (math.cos(a), math.sin(a), 0.0), (-math.sin(a), math.cos(a), 0.0)
+        mb.box(_polar(r, a, ic_top + sz[2] / 2), sz, (rad, tan, Z_AX))
+    mb.build("IC.Boxes", c, n, M("MLI_Silver"))
 
+    # ---- Wide Field Instrument: the anti-sun -X corner of the bay [S13] ---
     c = COLLS["WIDE_FIELD_INSTRUMENT"]
     n = empty("N.WideFieldInstrument",
               (*D.WFI_OFFSET, float(D.WFI_Z0)), c, root, 0.4)
-    box("WFI.Body", tuple(D.WFI_SIZE),
-        (D.WFI_OFFSET[0], D.WFI_OFFSET[1],
-         float(D.WFI_Z0) + D.WFI_SIZE[2] / 2), c, n, M("MLI_Silver"))
+    ws = tuple(D.WFI_SIZE)
+    zb = float(D.INSTR_BOX_Z0)
+    box("WFI.Body", ws, (D.WFI_OFFSET[0], D.WFI_OFFSET[1], zb + ws[2] / 2),
+        c, n, M("MLI_Silver"),
+        rot=(0, 0, math.radians(float(D.WFI_FACET_DEG))))
     # 300 MP focal plane: 18 H4RG detectors  [PUB]
     # 6 x 3 mosaic. The real focal plane bows its columns into a shallow
     # arc; reproduced here approximately (offsets and tilt are EST).
@@ -786,15 +1683,40 @@ def build_instruments(root):
         cyl(f"WFI.Element.{k+1}", 0.085, 0.024, wz - 0.003, c, n, verts=24,
             mat=M("Filter"),
             xy=(wc[0] + slot_r * math.cos(a), wc[1] + slot_r * math.sin(a)))
+    # radiator on the outer face, and the stepped forward housing V006 R
+    # shows running along the barrel's lower flank
+    nrm, tan = _facet(float(D.WFI_FACET_DEG))
+    rc = math.hypot(*D.WFI_OFFSET) + ws[0] / 2
+    mb = MeshBuilder()
+    mb.box(_add(_mul(nrm, rc + 0.02), (0, 0, zb + ws[2] / 2)),
+           (0.04, ws[1] * 0.92, ws[2] * 0.90), (nrm, tan, Z_AX))
+    for j in range(6):
+        u = (j - 2.5) * ws[1] * 0.15
+        mb.box(_add(_add(_mul(nrm, rc + 0.045), _mul(tan, u)), (0, 0, zb + ws[2] / 2)),
+               (0.012, 0.03, ws[2] * 0.84), (nrm, tan, Z_AX))
+    zf0 = zb + ws[2]
+    mb.box(_add(_mul(nrm, G["A_oba"] + 0.07), (0, 0, zf0 + 0.45)),
+           (0.14, ws[1] * 0.80, 0.90), (nrm, tan, Z_AX))
+    mb.build("WFI.Radiator", c, n, M("Radiator"))
 
+    # ---- Coronagraph: the anti-sun +X corner, mirroring the WFI [S13] -----
     c = COLLS["CORONAGRAPH_INSTRUMENT"]
     n = empty("N.CoronagraphInstrument",
               (*D.CGI_OFFSET, float(D.CGI_Z0)), c, root, 0.4)
-    box("CGI.Body", tuple(D.CGI_SIZE),
-        (D.CGI_OFFSET[0], D.CGI_OFFSET[1],
-         float(D.CGI_Z0) + D.CGI_SIZE[2] / 2), c, n, M("MLI_Silver"))
-
-
+    cs = tuple(D.CGI_SIZE)
+    zb = float(D.INSTR_BOX_Z0)
+    box("CGI.Body", cs, (D.CGI_OFFSET[0], D.CGI_OFFSET[1], zb + cs[2] / 2),
+        c, n, M("MLI_Silver"),
+        rot=(0, 0, math.radians(float(D.CGI_FACET_DEG))))
+    nrm, tan = _facet(float(D.CGI_FACET_DEG))
+    rc = math.hypot(*D.CGI_OFFSET) + cs[0] / 2
+    mb = MeshBuilder()
+    mb.box(_add(_mul(nrm, rc + 0.02), (0, 0, zb + cs[2] * 0.55)),
+           (0.04, cs[1] * 0.85, cs[2] * 0.70), (nrm, tan, Z_AX))
+    mb.box(_add(_add(_mul(nrm, 1.05), _mul(tan, 0.45)),
+                (0, 0, float(D.CGI_Z0) + 0.12)),
+           (0.30, 0.30, 0.24), (nrm, tan, Z_AX))
+    mb.build("CGI.Detail", c, n, M("Radiator"))
 # ===========================================================================
 # REFERENCE + SCENE
 # ===========================================================================
@@ -905,7 +1827,9 @@ def _collect(coll_name):
 # the independent ground truth; roman_dims is the hypothesis.
 PUBLISHED_ANCHORS = {
     "total_length_m":   (12.70, "[S1] NASA Roman FAQ, deployed"),
-    "total_width_m":    (4.40,  "[S1] NASA Roman FAQ, deployed"),
+    "total_width_m":    (4.40,  "[S1] NASA Roman FAQ; the body's width"),
+    # 2.0 m centre column (the 4 m hex shroud's flat) + two 2.1 m panels
+    "wing_span_m":      (6.20,  "[S2][S14] 2.0 + 2 x 2.1 m, deployed flat"),
     "primary_mirror_m": (2.40,  "[S1][S5] inherited, re-figured"),
     "oba_height_m":     (5.00,  "[S2] ~17 ft"),
     "oba_width_m":      (4.00,  "[S2] ~13.5 ft"),
@@ -956,8 +1880,16 @@ def qc():
         print("  !! no renderable geometry"); return False
     d = hi - lo
     check("observatory length (Z)", d.z, "total_length_m")
-    # Across the sun shield (X): see roman_dims.TOTAL_WIDTH.
-    check("observatory width (X)", d.x, "total_width_m")
+    # Across the wings (X); the body alone stays inside 4.40 m. See
+    # roman_dims TOTAL_WIDTH.
+    check("wing span (X)", d.x, "wing_span_m")
+    wings = set(_collect("SOLAR_ARRAY_SUN_SHIELD")) | set(_collect("OSS.LowerInstrumentSunShade"))
+    bl, bh = _evaluated_bbox([o for o in _collect("OBSERVATORY") if o not in wings])
+    want, src = PUBLISHED_ANCHORS["total_width_m"]
+    ok = (bh - bl).x <= want + QC_TOLERANCE
+    fails += 0 if ok else 1
+    print(f"  {'PASS' if ok else 'FAIL'}  {'body width (X), at most':<34} "
+          f"{(bh - bl).x:>7.3f}  want {want:>7.3f}   {src}")
 
     ok = abs(lo.z) <= QC_TOLERANCE
     fails += 0 if ok else 1

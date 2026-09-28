@@ -6,8 +6,11 @@ Headless pipeline: roman_build -> geometry pass -> roman_export_web.
     (or)  ROMAN_OUT_DIR=public/models blender -b --factory-startup \
               --python scripts/roman/build_web.py
 
-Parts are exported unmerged (146 meshes): the explorer picks, labels and
-folds individual parts, and 146 draw calls is nothing for WebGL.
+Parts are exported unmerged (~190 meshes): the explorer picks, labels and
+folds individual parts. Purely decorative detail -- truss members, isogrid,
+brackets, rails -- is already built as one mesh per subsystem and material
+by roman_build's MeshBuilder, which keeps the count, and the Draco-compressed
+file (~1 MB), in budget.
 
 Only the geometry half of roman_materials.py runs here (smooth-by-angle
 and the 2 mm edge bevel). Its shaders are procedural, and glTF drops

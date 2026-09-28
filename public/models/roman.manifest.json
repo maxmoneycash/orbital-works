@@ -9,7 +9,7 @@
   "total_width_m": 4.4,
   "dac_node_prefix": "TEL.DeployableApertureCover",
   "dac_stowed_scale": 0.0918,
-  "mesh_count": 167,
+  "mesh_count": 188,
   "subsystems": [
     "TEL.PrimaryMirrorAssembly",
     "TEL.SecondaryMirrorAssembly",

@@ -194,7 +194,13 @@ def shade_and_bevel():
         smoothed += 1 if done else 0
 
         # --- bevel ---
-        if any(m.type == 'BEVEL' for m in o.modifiers):
+        # roman_build's MeshBuilder flags its joined detail meshes: a bevel
+        # on thousands of small ribs multiplies the vertex count for edges
+        # nobody can see. The flag is removed so it never reaches glTF.
+        skip = bool(o.get("no_bevel")) if hasattr(o, "get") else False
+        if "no_bevel" in o.keys():
+            del o["no_bevel"]
+        if skip or any(m.type == 'BEVEL' for m in o.modifiers):
             continue
         try:
             bpy.ops.object.modifier_add(type='BEVEL')

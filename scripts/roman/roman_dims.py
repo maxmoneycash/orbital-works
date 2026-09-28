@@ -44,6 +44,16 @@ SOURCES
 [S11] nasa.gov "High-Gain Antenna ... clears environmental tests" (2023).
 [S12] roman.gsfc.nasa.gov/interactive/subparts/wfi-element-wheel/ and
      roman-docs.stsci.edu WFI optical elements -- 11-position element wheel.
+[S13] NASA interactive tour renders, version V006 -- flight configuration,
+     four views (roman.gsfc.nasa.gov/interactive/views/
+     ROMAN_interactive_V006_{F,B,L,R}_Roman_off_00000_lg.png) plus the
+     part-select overlays (.../part-select/ROMAN_interactive_V006_{view}_
+     Roman_{tele,SP,support,comms,CGI,WFI}_00000.png). Pre-rendered
+     perspective views, not CAD: good for shape, layout and proportion,
+     not for metres. Every EST that cites it was read off those pixels.
+[S14] NASA, "Telescope Milestone: Teams Check Out NASA Roman Solar Panels"
+     (science.nasa.gov/blogs/roman, 16 Jul 2026) -- "each of the six panels
+     is about 7 by 10 feet (2.1 by 3 meters)".
 
 KNOWN NON-PUBLIC
 ----------------
@@ -196,11 +206,63 @@ CORRECTIONS = [
                     "forced the LISS to 18 deg; that conflict dissolves, and "
                     "the LISS angle is an honest EST", "[S1]"),
     ("SASS_HALF_SPAN", "derived from the assumption that the arrays are "
-                       "the widest thing on the observatory. NASA press "
-                       "copy describes each of six panels as ~7 x 10 m, "
-                       "which cannot coexist with a 4.4 m deployed width. "
-                       "UNRESOLVED -- one of the two figures is wrong.",
-     "[S1][S7]"),
+                       "the widest thing on the observatory, against a "
+                       "reading of the panels as ~7 x 10 m. RESOLVED by "
+                       "[S14]: the panels are 7 x 10 FEET, 2.1 x 3 m, and "
+                       "three 2.1 m columns span ~6.3 m -- wider than 4.4",
+     "[S1][S7][S14]"),
+    # --- v3: shape pass against NASA's flight-configuration renders -----
+    ("OBA", "a round 4 m tube on six vertical stilts; V006 shows a "
+            "HEXAGONAL shroud (corners at +-X, a flat sun-side top) around "
+            "a round inscribed bore, framed at four stations, on a short "
+            "open truss bay with isogrid panels -- the barrel is ~3.6 m of "
+            "the 5 m, the bay ~1.4 m, not 2.8 + 2.2", "[S13][S2]"),
+    ("OBA", "no front bulkhead; V006 F shows a flat front ring carrying the "
+            "visor, its lower edge following the hex's lower facets down to "
+            "a stepped keel with fittings -- the observatory's lowest point",
+     "[S13]"),
+    ("DAC", "a truncated cone; V006 shows a GABLED SCOOP -- one ridge boom "
+            "and two eave booms run the full length, the roof flares up "
+            "toward the tip, and the side walls are cut at a slant so the "
+            "sun-side edge reaches ~4 m past the lower edge", "[S13]"),
+    ("SASS", "flat roof 0.62 m off a round barrel with three equal columns; "
+             "V006 F puts the roof just proud of the hex's sun-side flat and "
+             "the hinge lines on that flat's corners, so the fixed centre "
+             "column is the flat's width (2.0 m) and the outer columns are "
+             "what is left of the envelope", "[S13]"),
+    ("LISS", "two panels leaning 28 deg off the bus's sun face; V006 B/L "
+             "put them in the roof plane, carrying the sun shield aft over "
+             "the bus", "[S13][S8]"),
+    ("HGA", "dish slung below the bus on a downward boom; V006 B shows the "
+            "boom rising from the aft top of the bus and the 1.7 m dish "
+            "above the sun shield, bowl toward the Sun/Earth side", "[S13]"),
+    ("WFI/CGI", "WFI on +X and CGI on -X, both near the axis; the V006 "
+                "part overlays put the CGI on +X and the WFI on -X, both in "
+                "the anti-sun half of the bay, their outer faces standing "
+                "just proud of the bay's lower facets", "[S13]"),
+    ("bus", "2.9 m hexagon, flats at +-X, well inside the barrel, on a "
+            "0.8 m cone adapter; V006 B shows a hexagon nearly the barrel's "
+            "width with its corners at +-X, on a short interface ring under "
+            "a flat aft deck ringed by isogrid", "[S13]"),
+    ("bus", "a closed 2.0 m box; V006 L/R show a closed box only ~1.4 m "
+            "long, then an open, isogrid-framed bay ~2.5 m long that the "
+            "WFI and CGI enclosures hang in, carrying on into the OBA's "
+            "stand", "[S13]"),
+    ("SASS/LISS", "array over the barrel only, shade tilted off the bus; "
+                  "V006 R/B show one roof: the LISS panels in the array's "
+                  "plane over the bus, the array running on to the front "
+                  "ring", "[S13]"),
+    ("SMA", "hexapod struts skewed 14 deg with alternating heads; V006 F "
+            "shows three V-pairs, one on the sun side, feet ~76 deg apart, "
+            "heads converging to ~26 deg", "[S13][S3]"),
+    ("TOTAL_WIDTH", "the model squeezed its wings inside 4.40 m. NASA's "
+                    "own panel size [S14] and the V006 renders [S13] both "
+                    "put the deployed wing span at ~6.2-7 m, so 4.40 m "
+                    "cannot be the span across the wings. The wings now "
+                    "take NASA's panel width (outer columns 2.1 m, LISS "
+                    "swung out from the bus's sun-side corners), and 4.40 m "
+                    "is read as the body's width: nothing but the wings "
+                    "may exceed it", "[S1][S13][S14]"),
 ]
 
 # ===========================================================================
@@ -208,8 +270,9 @@ CORRECTIONS = [
 # ===========================================================================
 
 TOTAL_LENGTH  = PUB(12.70, "[S1] deployed, semi-truck-trailer length")
-TOTAL_WIDTH   = PUB(4.40,  "[S1] deployed; read as the span across the "
-                             "sun shield (X). Depth is not published.")
+TOTAL_WIDTH   = PUB(4.40,  "[S1][S10] 'over 14 ft wide'; read as the "
+                             "body's width (X). The wings reach past it: "
+                             "see SASS_HALF_SPAN and CORRECTIONS.")
 PM_DIA        = PUB(2.40,  "[S1][S5] inherited, re-figured to RST prescription")
 
 # ===========================================================================
@@ -218,22 +281,45 @@ PM_DIA        = PUB(2.40,  "[S1][S5] inherited, re-figured to RST prescription")
 # ===========================================================================
 
 LVA_Z0            = DER(0.00, "datum")
-LVA_H             = EST(0.80, "TODO: Falcon Heavy PAF stack height")
-LVA_DIA_BOTTOM    = EST(2.60)
-LVA_DIA_TOP       = EST(3.20)
+LVA_H             = EST(0.30, "V006 B/L [S13]: a short interface ring under "
+                              "a flat aft deck, not a tall cone (was 0.80)")
+LVA_DIA_BOTTOM    = EST(3.05, "separation flange; V006 B ring ~0.75x the "
+                              "bus's across-corners width")
+LVA_DIA_TOP       = EST(2.95, "ring body, same V006 B reading")
 
-BUS_Z0            = DER(0.80, "= LVA_Z0 + LVA_H")
-BUS_H             = EST(2.00, "TODO: measure off glb")
-BUS_ACROSS_CORNERS = EST(2.90, "hexagonal prism [S4]; must clear OBA and fit TOTAL_WIDTH")
+BUS_Z0            = DER(0.30, "= LVA_Z0 + LVA_H")
+BUS_H             = EST(2.50, "primary structure up to its top deck; keeps "
+                              "OBA_Z0 at 2.80 (was 2.00)")
+BUS_BOX_H         = EST(1.40, "V006 L/R [S13]: the CLOSED avionics box is only "
+                              "the aft ~1.4 m; the rest is an open, isogrid-"
+                              "framed bay the instruments hang in")
+BUS_ACROSS_CORNERS = EST(3.90, "hexagonal prism [S4], corners at +-X; V006 B "
+                               "[S13] shows it nearly the barrel's width "
+                               "(was 2.90)")
 
 OBA_Z0            = DER(2.80, "= BUS_Z0 + BUS_H")
 OBA_H             = PUB(5.00, "[S2] ~17 ft")
-OBA_DIA           = PUB(4.00, "[S2] ~13.5 ft")
-OBA_WALL          = EST(0.06)
-OBA_VANE_W        = EST(0.35, "radial width of each annular baffle vane")
-STAND_H           = EST(2.20, "[S2] 'elephant stand' lower truss")
-STAND_LEGS        = EST(6)
-STAND_LEG_DIA     = EST(0.16)
+OBA_DIA           = PUB(4.00, "[S2] ~13.5 ft; read as the hex shroud's "
+                              "across-corners width (X), per V006 [S13]")
+OBA_BORE_DIA      = EST(3.36, "round bore inscribed in the hex shroud, nearly "
+                              "touching its flats as in V006 F [S13]; clears "
+                              "the 2.62 m forward metering hoop")
+OBA_WALL          = EST(0.06, "blanketed shroud skin")
+OBA_VANE_W        = EST(0.22, "radial width of each annular baffle vane; "
+                              "V006 L shows narrow closely spaced rings")
+OBA_VANES         = EST(6, "V006 L [S13]: ~5-6 rings visible in the bore")
+OBA_FRAME_STATIONS = EST((0.0, 0.27, 0.66, 0.84),
+                         "external ring frames as fractions of the barrel "
+                         "length, read off V006 L/R [S13]")
+STAND_H           = EST(1.40, "[S2] 'elephant stand' lower truss; V006 L/R "
+                              "[S13] open bay ~0.4x the barrel (was 2.20)")
+STAND_LEGS        = EST(6, "one longeron per hex corner")
+STAND_LEG_DIA     = EST(0.11)
+OBA_RING_T        = EST(0.12, "front ring plate carrying the visor, V006 F")
+OBA_KEEL_DEPTH    = EST(2.20, "front ring's stepped keel reaches this far "
+                              "below the axis. V006 F/L fits read ~2.5, but "
+                              "V006 B hides it behind the bus, which caps it "
+                              "near 2.2; the lowest point in F/L/R")
 
 DAC_Z0            = DER(7.80, "= OBA_Z0 + OBA_H")
 DAC_H_DEPLOYED    = DER(4.90, "= TOTAL_LENGTH - DAC_Z0; closes the budget")
@@ -241,11 +327,40 @@ DAC_H_STOWED      = EST(0.45)
 # NOT a rigid cone. [S6]: "deployed once in orbit using a soft material
 # attached to support booms". Previous passes solidified a cone shell,
 # which is the wrong construction entirely.
+#
+# Nor a truncated cone of membrane, v2's reading. V006 [S13] shows a gabled
+# SCOOP: a ridge boom and two eave booms run the full length; two roof
+# panels hang between them, flaring up toward the tip; the side walls drop
+# from the eaves and are cut at a slant, so the sun-side edge reaches far
+# past the lower edge. Scaling it along the axis about its base (how the
+# viewer stows it) keeps that shape as a short slanted collar.
 DAC_MEMBRANE      = PUB(True, "[S6] soft material on support booms")
-DAC_BOOMS         = EST(3,    "boom count not published")
-DAC_BOOM_DIA      = EST(0.05)
-DAC_DIA_BASE      = DER(3.95, "~ OBA_DIA less clearance")
-DAC_DIA_TOP       = EST(3.10)
+DAC_BOOMS         = EST(3,    "V006 F [S13]: boom-end fittings at the ridge "
+                              "and both eaves")
+DAC_BOOM_DIA      = EST(0.06)
+# The section is constant: a straight gabled prism. Its mouth is cut on a
+# slant: the side walls from the end of their short lower edge up to the
+# eave corners, well forward, and the roof from the eave corners on to the
+# ridge's tip. Each side's cut edge therefore runs skirt -> eave corner ->
+# ridge tip -- the kinked edge V006 L shows, with a boom-end fitting at the
+# kink. Numbers come from perspective cameras fitted to V006 [S13]; read as
+# orthographic, the renders make the tip look ~15 % larger than the base,
+# which is how v3's first cut came out flared.
+DAC_DIA_BASE      = EST(4.12, "width across the side walls (no longer a "
+                              "diameter); just outside the shroud's corners")
+DAC_DIA_TOP       = EST(4.12, "walls run straight; V006 F fit puts the eave "
+                              "corners and wall corners on one width")
+DAC_APEX_H        = EST(2.36, "ridge height above the axis; clears the hex "
+                              "shroud's top corners at the V006 roof pitch")
+DAC_EAVE_H        = EST(1.30, "eave height; V006 F/L fits, roof pitch ~27 deg")
+DAC_EAVE_REACH    = EST(4.10, "the eave booms and the walls' cut run this far "
+                              "forward of the base; the ridge runs the full "
+                              "4.90 m. V006 L camera fit: eave corner at "
+                              "~11.9 m")
+DAC_WALL_BOTTOM   = EST(0.55, "side walls stop this far BELOW the axis; "
+                              "V006 F fit")
+DAC_SKIRT_LEN     = EST(0.80, "length of the walls' short lower edge, where "
+                              "the mouth's slanted plane starts; V006 L/R")
 
 # ===========================================================================
 # OPTICAL TELESCOPE ASSEMBLY  -- all [S3] unless noted
@@ -286,7 +401,18 @@ SM_STRUT_DIA    = EST(0.055)
 SM_DIA          = EST(0.62, "TODO: not published in cleared literature")
 SM_BASE_RADIUS  = DER(1.31, "= FMS_DIA/2, strut feet on the hoop")
 SM_TOP_RADIUS   = EST(0.34, "strut heads on the SMA")
-SM_STRUT_SKEW_DEG = EST(14.0, "hexapod pairs skew tangentially; not published")
+# V006 F [S13] looks straight down the bore at the hexapod: three V-pairs,
+# one centred on the sun side, feet ~76 deg apart on the hoop, heads
+# converging to ~26 deg apart at the secondary. Each strut therefore turns
+# (foot half-angle - head half-angle) tangentially, which is the skew the
+# rise is solved with below.
+SM_PAIR_CENTRES_DEG = EST((270.0, 30.0, 150.0),
+                          "pair centres, Blender angle from +X; 270 = sun "
+                          "side (-Y). V006 F")
+SM_PAIR_FOOT_HALF_DEG = EST(38.0, "V006 F: feet at pair centre +-38 deg")
+SM_PAIR_HEAD_HALF_DEG = EST(13.0, "V006 F: heads at pair centre +-13 deg")
+SM_STRUT_SKEW_DEG = DER(float(SM_PAIR_FOOT_HALF_DEG) - float(SM_PAIR_HEAD_HALF_DEG),
+                        "= foot half-angle - head half-angle (was EST 14)")
 
 # Solve SM height from the PUBLISHED 2.4 m strut length instead of guessing.
 # A hexapod strut is NOT radial -- it skews tangentially, so the horizontal
@@ -327,6 +453,8 @@ TOMA_POWERED_MIRRORS = PUB(3, "[S3] M3, M4, M5")
 # --- Instrument Carrier interface ---------------------------------------
 FOA_STRUTS      = PUB(6, "[S3] six Forward Optical Assembly struts, bearings each end")
 FOA_STRUT_DIA   = EST(0.09)
+FOA_FOOT_RADIUS = EST(1.02, "strut feet on the carrier, pulled inboard of the "
+                            "WFI/CGI enclosures (was 0.42 x IC_DIA)")
 
 # ===========================================================================
 # INSTRUMENTS
@@ -334,14 +462,25 @@ FOA_STRUT_DIA   = EST(0.09)
 
 IC_Z0           = DER(2.80)
 IC_H            = EST(0.55)
-IC_DIA          = EST(3.40)
+IC_DIA          = EST(3.20, "fits inside the bay truss (hex inradius ~1.69 m); was 3.40")
 
 # Seated ON the instrument carrier deck (IC_Z0 + IC_H) and short enough to
 # clear the Aft Metering Structure underside (~4.65 m). The first pass put
 # the detectors inside the deck and the box through the AMS.
 WFI_Z0          = DER(3.35, "= IC_Z0 + IC_H; sits on the deck")
-WFI_SIZE        = EST((1.30, 1.10, 1.28))
-WFI_OFFSET      = EST((0.75, 0.30))
+# V006 part overlays [S13]: the WFI sits in the anti-sun, -X corner of the
+# bay with its outer face just proud of the bay's lower-left facet (Blender
+# angle 150 deg), and the CGI mirrors it on +X. v2 had them the other way
+# round and near the axis. Sizes are (radial, tangential, height) in that
+# facet's frame.
+WFI_FACET_DEG   = EST(150.0, "enclosure faces the lower -X facet; V006 R/F")
+INSTR_BOX_Z0    = EST(1.85, "WFI and CGI enclosures start just forward of "
+                            "the closed bus box and run the bay's length; "
+                            "V006 L/R")
+WFI_SIZE        = EST((0.85, 1.50, 2.40), "(radial, tangential, height) of "
+                                          "the enclosure; V006 R")
+WFI_OFFSET      = EST((-1.381, 0.798), "enclosure centre, radius 1.595 m "
+                                       "along WFI_FACET_DEG")
 WFI_DETECTORS   = PUB(18,  "[S5] 18 H4RG detectors, 300 MP mosaic")
 WFI_ELEMENTS    = PUB(11,  "[S12] 11-position element wheel")
 WFI_WHEEL_DIA   = EST(0.46, "wheel size not published")
@@ -349,8 +488,11 @@ WFI_WHEEL_Z     = EST(0.5, "height above the detectors, near the exit pupil")
 WFI_FOV_DEG     = PUB((0.8, 0.5), "[S3] diffraction-limited ~0.8 x 0.5 deg")
 
 CGI_Z0          = DER(3.35, "= IC_Z0 + IC_H; sits on the deck")
-CGI_SIZE        = EST((0.95, 0.85, 1.22))
-CGI_OFFSET      = EST((-0.80, -0.25))
+CGI_FACET_DEG   = EST(30.0, "enclosure faces the lower +X facet; V006 L")
+CGI_SIZE        = EST((0.70, 1.10, 2.40), "(radial, tangential, height); "
+                                          "V006 L")
+CGI_OFFSET      = EST((1.429, 0.825), "enclosure centre, radius 1.65 m "
+                                      "along CGI_FACET_DEG")
 
 # ===========================================================================
 # SPACECRAFT SUBSYSTEMS
@@ -368,67 +510,109 @@ SASS_STOWED_AGAINST_OBA = PUB(True, "[S6] folded down against the OBA for launch
 # four are the hinged ones.
 SASS_COLUMNS    = PUB(3, "[S9] photos: 3 columns x 2 rows of panels")
 SASS_ROWS       = PUB(2, "[S9] photos: 3 columns x 2 rows of panels")
-SASS_Z0         = EST(2.60)
-SASS_H          = EST(4.60)
-SASS_PANEL_T    = EST(0.05)
-SASS_HALF_SPAN  = DER(float(TOTAL_WIDTH) / 2.0,
-                      "ASSUMES the arrays are the widest item -- see "
-                      "CORRECTIONS; NASA panel sizing conflicts with this")
-SASS_COL_W      = DER(float(TOTAL_WIDTH) / float(SASS_COLUMNS),
-                      "three coplanar columns spanning the published width")
-SASS_STANDOFF   = EST(0.62, "sun-side standoff from the barrel")
+SASS_Z0         = EST(2.20, "aft edge of the array, just forward of the LISS "
+                            "it continues; V006 L/R/B (was 2.60)")
+SASS_H          = EST(5.45, "two ~2.7 m rows running to the barrel's front "
+                            "ring; V006 R (was 4.60)")
+SASS_PANEL_T    = EST(0.06, "V006 F edge-on panels read as slabs")
+# The shroud is a hexagon with its corners at +-X, so its sun-side flat runs
+# between x = -R/2 and +R/2. V006 F [S13] puts the SASS hinge lines on that
+# flat's corners: the fixed centre column is the flat's width, and the
+# hinged outer columns fold down onto the sloping upper facets for launch.
+OBA_TOP_FLAT_W  = DER(float(OBA_DIA) / 2, "hex side = circumradius = OBA_DIA/2")
+SASS_COL_W      = DER(float(OBA_TOP_FLAT_W),
+                      "fixed centre column = the barrel's sun-side flat, "
+                      "hinged at its corners; V006 F (was TOTAL_WIDTH/3)")
+SASS_OUTER_W    = PUB(2.10, "[S14] each panel ~7 x 10 ft (2.1 x 3 m); the "
+                            "V006 F camera fit reads ~2.5 m, within its "
+                            "perspective error (was 1.20, squeezed into "
+                            "4.40 m)")
+SASS_HALF_SPAN  = DER(float(SASS_COL_W) / 2 + float(SASS_OUTER_W),
+                      "centre half-column + one outer column, deployed "
+                      "flat; the wings, not the body, set the span")
+SASS_CHAMFER    = EST(0.30, "outer corners of the end panels are cut at 45 "
+                            "deg; V006 F/L")
+SASS_STANDOFF   = EST(0.55, "array centre-plane above the barrel's sun-side "
+                            "flat, on brackets; V006 F camera fit puts the "
+                            "wings ~2.3 m above the axis (was 0.62 off a "
+                            "round barrel)")
 
 
 # The fold is NOT free either. An outer column hinged at the centre column's
-# edge swings back toward the barrel for launch; the deepest it can go is
-# where its far edge would touch the barrel. Solved, not guessed.
-def _solve_sass_fold(col_w, standoff, barrel_r, clearance=0.06):
-    hx, hy = col_w / 2, barrel_r + standoff      # hinge, in the plane
+# edge swings down toward the barrel for launch; the deepest it can go is
+# where it would touch the shroud. Solved against the hexagon, not guessed.
+def _hex_inside(x, y, R, clearance):
+    """Is (x, y) inside a hexagon of circumradius R (corners on +-X), grown
+    by `clearance`?"""
+    a = R * math.sqrt(3) / 2
+    return (abs(y) < a + clearance and
+            math.sqrt(3) * abs(x) + abs(y) < math.sqrt(3) * R + 2 * clearance)
+
+
+def _solve_sass_fold(hinge_x, panel_w, standoff, barrel_R, clearance=0.06):
+    hx, hy = hinge_x, barrel_R * math.sqrt(3) / 2 + standoff   # hinge
     best = 0.0
-    for tenth in range(0, 900):
+    for tenth in range(0, 1200):
         th = math.radians(tenth / 10)
-        ok = all(math.hypot(hx + s * col_w * math.cos(th),
-                            hy - s * col_w * math.sin(th)) >= barrel_r + clearance
-                 for s in (0.25, 0.5, 0.75, 1.0))
+        ok = not any(_hex_inside(hx + s * panel_w * math.cos(th),
+                                 hy - s * panel_w * math.sin(th),
+                                 barrel_R, clearance)
+                     for s in (0.1, 0.25, 0.5, 0.75, 1.0))
         if not ok:
             break
         best = tenth / 10
     return best
 
 
-SASS_FOLD_DEG   = DER(_solve_sass_fold(float(SASS_COL_W), float(SASS_STANDOFF),
-                                       float(OBA_DIA) / 2),
-                      "deepest fold before the column's edge meets the barrel")
+SASS_FOLD_DEG   = DER(_solve_sass_fold(float(SASS_COL_W) / 2, float(SASS_OUTER_W),
+                                       float(SASS_STANDOFF), float(OBA_DIA) / 2),
+                      "deepest fold before the column meets the hex shroud")
 
 # --- Lower Instrument Sun Shade -- absent from every previous pass -------
 LISS_PANELS     = PUB(2,     "[S6] two deployable panels on the bus")
 LISS_PANEL_W    = PUB(2.10,  "[S8] ~7 ft")
 LISS_PANEL_H    = PUB(2.10,  "[S8] ~7 ft")
 LISS_PANEL_T    = PUB(0.076, "[S8] 3 in, aluminium honeycomb sandwich")
-LISS_Z0         = EST(1.10,  "attachment height on the bus")
-LISS_HINGE_GAP  = EST(0.10,  "standoff from the bus face")
-
-# Earlier passes solved this angle from the 4.40 m width, which pinned the
-# panels at 18 deg, nearly flat. The width is now read across the sun shield
-# (see TOTAL_WIDTH), and the LISS tilts out along the depth axis, so the
-# envelope no longer sets it -- and nothing published does either.
-LISS_OPEN_DEG   = EST(28.0, "not published; kept inside the SASS plane")
+# V006 B/L [S13] put the LISS in the sun shield's plane, over the bus: the
+# roof continues aft of the array. V006 hinges each panel at a sun-side
+# corner of the bus and swings it OUT to the array's span; for launch it
+# folds down onto the bus's sloping upper facet.
+LISS_Z0         = EST(0.05,  "aft edge of the panels, flush with the aft "
+                             "end; V006 L overhangs it, the Z=0 datum does "
+                             "not allow that (was 1.10)")
+LISS_STANDOFF   = DER(float(OBA_DIA) / 2 * math.sqrt(3) / 2 + float(SASS_STANDOFF)
+                      - float(BUS_ACROSS_CORNERS) / 2 * math.sqrt(3) / 2,
+                      "panels sit in the sun shield's plane, on arms off "
+                      "the bus's sun-side corners; V006 B/R")
+LISS_CHAMFER    = EST(0.35,  "outer-aft corner cut; V006 L/B roof outline")
+LISS_OPEN_DEG   = EST(60.0,  "swing from folded onto the bus's upper facet "
+                             "(the hexagon's 60 deg slope) out to the roof "
+                             "plane; not published (was 90, hanging down "
+                             "the bus flank)")
 
 HGA_DISH_DIA    = PUB(1.70, "[S10] 1.7 m carbon-composite dish, 10.9 kg")
-HGA_DISH_DEPTH  = EST(0.26)
+HGA_DISH_DEPTH  = EST(0.38, "V006 F/B show a deep bowl, depth ~0.2 D "
+                            "(was 0.26)")
+HGA_DISH_RIBS   = EST(24, "radial ribs on the dish's back; V006 F/B/L")
 HGA_FEED_STRUTS = PUB(4, "[S11] test photo: four struts to a central feed")
 HGA_BOOM_DIA    = EST(0.10)
 HGA_GIMBALLED   = PUB(True, "[S6] gimbals allow multi-axis ground pointing")
 HGA_GIMBAL_DIA  = EST(0.22)
 LGA_DIA         = EST(0.14)
-# Where the boom lives is not published. A 1.7 m dish cannot sit beside the
-# bus inside the 4.4 m width (v2 derived a 0.45 m boom for a 0.6 m dish that
-# the press kit now contradicts), so it hangs below the bus on the sun side,
-# where Earth is from L2, and swings down on its boom after launch [S10].
-HGA_ROOT_Z      = EST(1.70, "boom root height on the bus")
-HGA_BOOM_LEN    = EST(1.25, "placement schematic; boom deploys after launch")
-HGA_BOOM_DOWN_DEG = EST(38.0, "deployed boom angle below the bus")
-HGA_STOWED_DEG  = EST(-70.0, "boom folded up against the bus for launch")
+# Where the boom lives is not published in text, but V006 [S13] shows it:
+# rising from the aft, sun-side edge of the bus, past the sun shield, with
+# the dish above the roof over the bus's aft end, bowl toward the Sun and
+# Earth. v2 hung it below the bus on a downward boom.
+HGA_ROOT_Z      = EST(0.45, "boom root on the bus's sun-side flat, just "
+                            "forward of the aft deck; V006 B/L (was 1.70)")
+HGA_BOOM_LEN    = EST(1.50, "V006 F fit: dish vertex ~3.6 m above the axis")
+HGA_BOOM_TILT_DEG = EST(14.0, "boom leans forward from vertical just enough "
+                              "that the dish clears the Z=0 datum; V006 L "
+                              "puts the dish ~0.6 m further aft")
+HGA_STOWED_DEG  = EST(-34.0, "boom folded forward through the slot between "
+                             "the LISS panels, dish clear above the roof; the "
+                             "real launch stowage is not published (-70 swung "
+                             "the dish into the instrument bay)")
 
 TCE_BOARDS      = PUB(17, "[S3] 17 circuit board assemblies, on the spacecraft element")
 TCE_HEATER_ZONES = PUB(96, "[S3] per side")
@@ -524,21 +708,30 @@ def check_budget():
     assert abs(float(OBA_Z0) + float(OBA_H) - float(DAC_Z0)) < 1e-6
     assert abs(float(BUS_Z0) + float(BUS_H) - float(OBA_Z0)) < 1e-6
 
-    # Width is the span across the sun shield (X); see TOTAL_WIDTH.
+    # The body stays inside the published width; the wings set the span
+    # (see TOTAL_WIDTH and SASS_HALF_SPAN).
     half = float(TOTAL_WIDTH) / 2
     reach = {
-        "solar array edge": float(SASS_COL_W) * float(SASS_COLUMNS) / 2,
         "outer barrel":     float(OBA_DIA) / 2,
         "spacecraft bus":   float(BUS_ACROSS_CORNERS) / 2,
-        "LISS panel span":  float(LISS_PANEL_W),
+        "aperture cover":   max(float(DAC_DIA_BASE), float(DAC_DIA_TOP)) / 2,
     }
     for what, r in reach.items():
         assert r <= half + 1e-6, (
             f"{what} reaches {r:.3f} m across, but the published "
-            f"deployed half-width is {half:.3f} m")
+            f"body half-width is {half:.3f} m")
+    liss_reach = float(BUS_ACROSS_CORNERS) / 4 + float(LISS_PANEL_W)
+    assert abs(liss_reach - float(SASS_HALF_SPAN)) < 0.15, (
+        f"LISS reaches {liss_reach:.3f} m but the array {float(SASS_HALF_SPAN):.3f} m; "
+        "V006 shows one continuous roof edge")
     assert float(SASS_FOLD_DEG) > 30, "outer SASS columns barely fold"
     assert float(BUS_ACROSS_CORNERS) < float(OBA_DIA), \
-        "bus must be narrower than the outer barrel that slides over it"
+        "bus must not be wider than the barrel it carries"
+    inradius = float(OBA_DIA) / 2 * math.sqrt(3) / 2
+    assert float(OBA_BORE_DIA) / 2 < inradius - 0.02, \
+        "round bore does not fit inside the hex shroud"
+    assert float(DAC_WALL_BOTTOM) + float(DAC_EAVE_H) > 0, \
+        "visor side walls have no height"
     return True
 
 
