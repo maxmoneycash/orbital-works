@@ -174,7 +174,7 @@ class SourcesStore {
     this.persistEnabled();
     // Clean up IndexedDB
     cacheDelete(TEXT_KEY_PREFIX + id);
-    cacheDelete('tlescope_tle_custom_' + id);
+    cacheDelete('orbital_tle_custom_' + id);
     this.onSourcesChange?.();
   }
 
@@ -202,11 +202,11 @@ class SourcesStore {
       return (await cacheGetRaw(TEXT_KEY_PREFIX + src.id)) || null;
     }
     if (src.type === 'celestrak' && src.group) {
-      const entry = await cacheGet('tlescope_tle_' + src.group);
+      const entry = await cacheGet('orbital_tle_' + src.group);
       return entry?.data ?? null;
     }
     if (src.type === 'url') {
-      const entry = await cacheGet('tlescope_tle_custom_' + src.id);
+      const entry = await cacheGet('orbital_tle_custom_' + src.id);
       return entry?.data ?? null;
     }
     return null;
@@ -225,7 +225,7 @@ class SourcesStore {
       s.id === id ? { ...s, type: 'text' as SourceType, url: undefined } : s
     );
     this.persistCustom();
-    cacheDelete('tlescope_tle_custom_' + id);
+    cacheDelete('orbital_tle_custom_' + id);
     this.onSourcesChange?.();
   }
 

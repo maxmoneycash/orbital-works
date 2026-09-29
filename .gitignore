@@ -29,3 +29,9 @@ __pycache__/
 # Impeccable local state
 .impeccable/hook.cache.json
 .impeccable/questions/
+
+# Private working notes, kept out of the public repository
+PRODUCT.md
+.impeccable/review/
+.impeccable/decision/
+.impeccable/surfaces/

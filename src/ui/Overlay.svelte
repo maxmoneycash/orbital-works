@@ -20,6 +20,7 @@
   import AnatomyWindow from './AnatomyWindow.svelte';
   import RomanStory from './roman/RomanStory.svelte';
   import CensusPanel from './census/CensusPanel.svelte';
+  import TelemetryPanel from './telemetry/TelemetryPanel.svelte';
   import DesignerWindow from './DesignerWindow.svelte';
   import PhasedArrayWindow from './PhasedArrayWindow.svelte';
   import WaveformWindow from './WaveformWindow.svelte';
@@ -82,6 +83,7 @@
   <SkyRotator />
   <RomanStory />
   <CensusPanel />
+  <TelemetryPanel />
 </div>
 
 <style>

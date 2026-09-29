@@ -1,5 +1,5 @@
 Orbital Works
-Copyright (C) 2026 Max Mohammadi
+Copyright (C) 2026 maxmoneycash
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU Affero General Public License as published by the Free
@@ -55,6 +55,18 @@ Changes made in this version:
 
   - Added a Constellation window comparing the licensed Starlink shell
     architecture against objects matched in the live catalogue.
+
+  - Added the Nancy Grace Roman Space Telescope: a scroll-driven story on
+    the landing page, built on an observatory model generated in Blender
+    from published NASA dimensions, and Roman's real trajectory to L2 from
+    JPL Horizons drawn in the tracker.
+
+  - Added an Orbital census: every object in CelesTrak's catalogue drawn on
+    the globe by type and orbit.
+
+  - Added a Live telemetry feed: frames decoded by SatNOGS network ground
+    stations, served through a cached Vercel function, with the receiving
+    station, the satellite and the downlink drawn on the globe.
 
 ------------------------------------------------------------------------------
 Third-party data and assets

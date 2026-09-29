@@ -1,5 +1,6 @@
 import type { Satellite, SelectedSatInfo } from '../types';
 import type { CensusPick } from '../scene/census-layer';
+import type { TelemetryObservation } from '../data/telemetry';
 import type { SatellitePass } from '../passes/pass-types';
 import { ViewMode } from '../types';
 import { MOBILE_BREAKPOINT } from '../constants';
@@ -190,6 +191,20 @@ class UIStore {
   openCensus() {
     if (this.isMobile) this.openMobileSheet('census');
     else this.censusOpen = true;
+  }
+
+  /** The live telemetry window (desktop); on phones it is the 'telemetry' sheet. */
+  telemetryOpen = $state(false);
+  /** Whether the telemetry feed is showing, on either kind of screen. */
+  get telemetryActive(): boolean { return this.isMobile ? this.activeMobileSheet === 'telemetry' : this.telemetryOpen; }
+  /** The frame the globe draws: its pass, station and the moment it was heard. */
+  telemetryFocus = $state<{ obs: TelemetryObservation; t: string } | null>(null);
+  /** Turn the globe to the focused frame's station (set by the app). */
+  onTelemetryFly: (() => void) | null = null;
+  /** Open the telemetry feed on either kind of screen. */
+  openTelemetry() {
+    if (this.isMobile) this.openMobileSheet('telemetry');
+    else this.telemetryOpen = true;
   }
 
   /** Whether the observatory's 3D model has loaded (set by the deep-space layer). */

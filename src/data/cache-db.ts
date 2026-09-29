@@ -127,7 +127,6 @@ export function cleanupLocalStorage(): void {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
       if (
-        key?.startsWith('tlescope_tle_') ||
         key?.startsWith('orbital_source_text_') ||
         key?.startsWith('threescope_catalog_')
       ) {

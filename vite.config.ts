@@ -85,6 +85,31 @@ export default defineConfig({
           .replace(/__SITE_URL__/g, siteUrl);
       },
     },
+    {
+      // The dev proxy sends /api to production, which only has the functions
+      // already deployed. Serve the telemetry feed from this checkout instead,
+      // held for 90 s like the edge holds it, so reloads don't hit SatNOGS.
+      name: 'local-api-telemetry',
+      apply: 'serve',
+      configureServer(server) {
+        let held: { at: number; status: number; body: Buffer } | null = null;
+        server.middlewares.use('/api/telemetry', async (_req, res) => {
+          try {
+            if (!held || Date.now() - held.at > 90_000) {
+              const mod = await server.ssrLoadModule('/api/telemetry.ts');
+              const r: Response = await mod.default.fetch();
+              held = { at: Date.now(), status: r.status, body: Buffer.from(await r.arrayBuffer()) };
+            }
+            res.statusCode = held.status;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(held.body);
+          } catch (e) {
+            res.statusCode = 500;
+            res.end(String(e));
+          }
+        });
+      },
+    },
     buttplugWasmPlugin(),
     svelte(),
     VitePWA({

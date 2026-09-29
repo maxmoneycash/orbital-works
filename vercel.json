@@ -6,7 +6,8 @@
   "functions": {
     "api/design.ts": { "maxDuration": 60 },
     "api/og.ts": { "maxDuration": 15 },
-    "api/s.ts": { "maxDuration": 10 }
+    "api/s.ts": { "maxDuration": 10 },
+    "api/telemetry.ts": { "maxDuration": 25 }
   },
   "rewrites": [
     { "source": "/s", "destination": "/api/s" },

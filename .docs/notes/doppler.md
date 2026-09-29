@@ -2,7 +2,7 @@
 
 ## Background
 
-The original C/raylib TLEscope added Doppler analysis in commit `1f991d4`. It computes the Doppler-shifted receive frequency for a satellite pass — useful for amateur radio operators tracking weather satellites (NOAA APT at 137 MHz) or ISS repeaters.
+Doppler analysis computes the Doppler-shifted receive frequency for a satellite pass — useful for amateur radio operators tracking weather satellites (NOAA APT at 137 MHz) or ISS repeaters.
 
 This port diverges from the original implementation in two ways: the range-rate computation and the coordinate transformation.
 

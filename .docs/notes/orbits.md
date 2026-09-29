@@ -2,7 +2,7 @@
 
 ## Problem
 
-TLEscope renders orbital paths for every loaded satellite. The naive approach calls the **SGP4 propagator** for each point on each orbit — an iterative algorithm that solves the Kepler equation with secular and periodic perturbation corrections. This is accurate but expensive.
+Orbital Works renders orbital paths for every loaded satellite. The naive approach calls the **SGP4 propagator** for each point on each orbit — an iterative algorithm that solves the Kepler equation with secular and periodic perturbation corrections. This is accurate but expensive.
 
 **Case study: Starlink constellation (~9,546 satellites)**
 

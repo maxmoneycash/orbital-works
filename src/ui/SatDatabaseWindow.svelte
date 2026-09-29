@@ -166,9 +166,9 @@
           if (enabled.has(src.id)) continue;
           let cacheKey: string;
           if (src.type === 'celestrak' && src.group) {
-            cacheKey = 'tlescope_tle_' + src.group;
+            cacheKey = 'orbital_tle_' + src.group;
           } else if (src.type === 'url') {
-            cacheKey = 'tlescope_tle_custom_' + src.id;
+            cacheKey = 'orbital_tle_custom_' + src.id;
           } else if (src.type === 'text') {
             cacheKey = 'orbital_source_text_' + src.id;
           } else {

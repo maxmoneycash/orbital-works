@@ -6,10 +6,10 @@ import { applyStdmag } from './catalog';
 import { detectFormat, normalizeToOMM } from './omm-formats';
 import { cacheGet, cacheGetRaw, cachePut, cacheDelete, cacheKeys } from './cache-db';
 
-const CACHE_KEY_PREFIX = 'tlescope_tle_';
+const CACHE_KEY_PREFIX = 'orbital_tle_';
 const CACHE_MAX_AGE_MS = __TLE_CACHE_MAX_AGE_H__ * 60 * 60 * 1000;
 const CACHE_EVICT_AGE_MS = __TLE_CACHE_EVICT_AGE_H__ * 60 * 60 * 1000;
-const RATELIMIT_KEY = 'tlescope_ratelimited';
+const RATELIMIT_KEY = 'orbital_ratelimited';
 const RATELIMIT_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
 export interface FetchResult {

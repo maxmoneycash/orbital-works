@@ -74,7 +74,6 @@
         <span>Planet textures</span><a href="https://www.solarsystemscope.com/textures/" target="_blank">Solar System Scope</a>
         <span>Spacecraft specs</span><a href="https://github.com/Sleepingknight0/BWX-STARLINK" target="_blank">BWX-STARLINK</a>
         <span>RF / link budget</span><a href="https://github.com/noiseinspacechannel/NIS-Starlink-Video" target="_blank">NIS-Starlink-Video</a>
-        <span>Upstream</span><a href="https://github.com/satvisorcom/satvisor" target="_blank">Satvisor</a>
       </div>
     </div>
     <div class="section">

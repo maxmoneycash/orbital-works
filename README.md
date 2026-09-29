@@ -1,32 +1,59 @@
 # Orbital Works
 
 A real-time satellite tracker with a spacecraft hardware and RF console bolted
-on. Runs entirely in the browser — no account, no backend.
+on. Runs in the browser, on desktop and on phones, with no account.
 
 **Live: [orbital-works.vercel.app](https://orbital-works.vercel.app)**
 
-Propagates the public catalog with SGP4 against live orbital elements, renders
-it on a textured Earth, and tells you when things fly over you and how bright
-they will be. Then it lets you open the spacecraft up and close the link.
+![The tracker: live telemetry from SatNOGS ground stations on the left, the ISS selected with its passes, and a phased-array beam steered at it](docs/screenshots/hero.webp)
+
+Propagates the public catalogue with SGP4 against live orbital elements,
+renders it on a textured Earth, and tells you when things fly over you and how
+bright they will be. It streams the frames that volunteer ground stations are
+decoding from satellites right now, draws everything humanity has left in
+orbit, and opens on NASA's newest space telescope.
+
+<p align="center">
+  <img src="docs/screenshots/phones.webp" width="860" alt="On a phone: the Roman story, the live telemetry sheet and the orbital census" />
+</p>
 
 ## What's in it
 
-**Roman Space Telescope.** The app opens on NASA's Nancy Grace Roman Space
-Telescope, launched 30 August 2026. It starts on the sky Roman surveys, with
-its eighteen detectors drawn to scale beside Hubble's infrared camera; pulls
-back until the outlines become the 3D focal plane with that sky still on the
-chips; flies out along the light through all five reflections; then walks
-through the coronagraph, the deployment sequence as flown, the thermal design
-and the downlink, and ends in a free exploration of all 167 parts, with
-exploded, cutaway and launch-configuration views.
+**Roman Space Telescope.** The landing page is a scroll-driven story about
+NASA's Nancy Grace Roman Space Telescope, launched 30 August 2026. Scroll and
+the camera follows Roman's real trajectory from Earth out past the Moon to its
+orbit around L2 (JPL Horizons), arrives at the observatory, unfolds it in the
+order and at the times it deployed, sweeps an X-ray through the telescope to
+follow starlight down the mirrors, builds an image on the eighteen detectors,
+sends it home over the dish to whichever ground station can see Roman right
+now, and takes the observatory apart. Scrolling back plays it in reverse, and
+reduced-motion settings hold each shot still.
+
+![The Roman story: an X-ray view of starlight landing on the eighteen detectors, and the observatory taken apart](docs/screenshots/roman.webp)
 
 The model is a reconstruction from public sources, not CAD, and says so: every
-number on screen comes from a dimension store that tags it published, derived
-from published figures, or estimated, and two unresolved source conflicts are
-shown where they apply. It is built headlessly in Blender from
+figure comes from a dimension store that tags it published, derived from
+published figures, or estimated. It is built headlessly in Blender from
 `scripts/roman/` (`npm run roman:glb`; `npm run roman:test` for the checks),
 with a QC pass that measures the built meshes against NASA's published
-dimensions. `#tracker` in the URL goes straight to the tracker.
+dimensions and its flight-configuration renders.
+
+**Live telemetry.** Frames that volunteer [SatNOGS](https://network.satnogs.org)
+ground stations decoded from satellites in the last half hour, streamed in the
+order they were heard: the satellite, the station, mode and frequency, the
+AX.25 callsigns, the payload as text where it is text (beacons, housekeeping
+CSV), and the raw bytes. The globe draws the station, where the satellite was
+at the moment the station heard it, the pass it was heard on, and the downlink
+between them. SatNOGS sends no CORS headers, so `api/telemetry.ts` reads the
+network once and the edge caches the answer for 90 seconds.
+
+**Orbital census.** Every object CelesTrak's catalogue lists in orbit, about
+34,500, one dot each on its catalogued height and tilt, coloured by what it
+is: working and dead satellites, rocket bodies, and debris from each. Filter
+by type or by orbit and click any dot to name it. `npm run census:data`
+refreshes the snapshot.
+
+![The orbital census: every catalogued object in orbit, with the geostationary belt and the crowded low-orbit shell](docs/screenshots/census.webp)
 
 **Tracking.** 3D globe with clouds, night lights, atmospheric scattering and
 terrain elevation. Orbit trails, ground tracks, footprints, apogee/perigee
@@ -89,7 +116,8 @@ npm run dev      # http://localhost:1420
 npm run build
 ```
 
-No tokens, no registry configuration — a clean checkout builds.
+No tokens, no registry configuration: a clean checkout builds. `?story=0` in the
+URL skips the Roman story and opens the tracker.
 
 Desktop builds via Tauri: `npm run tauri dev`.
 
@@ -123,15 +151,13 @@ says so rather than inventing a number.
 
 ## Licence and credits
 
-**AGPL-3.0.** This is a network-deployed application, so §13 applies: anyone
-using it over a network is entitled to the complete corresponding source, which
-is this repository.
+**AGPL-3.0.** This is a network-deployed application, so section 13 applies:
+anyone using it over a network is entitled to the complete corresponding
+source, which is this repository. [NOTICE](NOTICE) records the work this is
+derived from and what was changed.
 
-Orbital Works is a modified version of
-[Satvisor](https://github.com/satvisorcom/satvisor), itself derived from
-[TLEscope](https://github.com/aweeri/TLEscope). The tracking engine, globe
-rendering, pass predictor and window system come from that lineage and remain
-under AGPL-3.0. See [NOTICE](NOTICE) for what was changed.
+Live telemetry: frames and pass data from the [SatNOGS Network](https://network.satnogs.org),
+decoded by its volunteer ground stations.
 
 Roman facts, photos consulted and deployment timeline: NASA
 ([roman.gsfc.nasa.gov](https://roman.gsfc.nasa.gov/interactive/),

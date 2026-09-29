@@ -12,6 +12,7 @@ import { SunScene } from './scene/sun-scene';
 import { DeepSpaceLayer, TRACKER_VIEW } from './scene/deep-space';
 import { RomanStory } from './scene/roman-story';
 import { CensusLayer } from './scene/census-layer';
+import { TelemetryLayer } from './scene/telemetry-layer';
 import { SatelliteManager } from './scene/satellite-manager';
 import { OrbitRenderer } from './scene/orbit-renderer';
 import { satColorGl } from './constants';
@@ -75,6 +76,7 @@ export class App {
   private sunScene!: SunScene;
   private deepSpace!: DeepSpaceLayer;
   private census!: CensusLayer;
+  private telemetry!: TelemetryLayer;
   private censusWasOn = false;
   private censusDown: { x: number; y: number; t: number } | null = null;
   private censusHoverAt = 0;
@@ -528,6 +530,19 @@ export class App {
     this.census = new CensusLayer(overlay);
     this.scene3d.add(this.census.group);
     uiStore.onRetryCensus = () => this.loadCensus();
+
+    // Live telemetry: the focused frame's station, satellite and downlink.
+    this.telemetry = new TelemetryLayer(overlay);
+    this.scene3d.add(this.telemetry.group);
+    uiStore.onTelemetryFly = () => {
+      const f = uiStore.telemetryFocus;
+      if (!f || this.viewMode !== ViewMode.VIEW_3D) return;
+      if (this.lockedSat) this.exitSatLock();
+      const e = latLonToSurface(f.obs.station.lat, f.obs.station.lon, 0, 0);
+      const r = e.length();
+      this.camera.setTargetAngles(Math.atan2(e.x, e.z), THREE.MathUtils.clamp(Math.asin(e.y / r), -1.2, 1.2));
+      this.camera.setTargetDistance(THREE.MathUtils.clamp(this.camera.distance, 6.5, 11));
+    };
     this.hookCensusInput();
     this.story = new RomanStory(this.deepSpace);
     this.deepSpace.load().then(() => {
@@ -656,7 +671,7 @@ export class App {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const text = await resp.text();
         satellites = await parseSatelliteDataParallel(text);
-        await cachePut('tlescope_tle_custom_' + src.id, { ts: Date.now(), data: text, count: satellites.length });
+        await cachePut('orbital_tle_custom_' + src.id, { ts: Date.now(), data: text, count: satellites.length });
         sourcesStore.setLoadState(src.id, { satCount: satellites.length, status: 'loaded', epochAge: this.computeEpochAge(satellites) });
       } else {
         const text = await sourcesStore.getCustomText(src.id);
@@ -1789,6 +1804,9 @@ export class App {
       if (uiStore.censusPick == null) this.census.marked = null;
     }
     this.census.update(epochToUnix(epoch) * 1000, this.camera3d, window.innerWidth, window.innerHeight);
+    this.telemetry.update(uiStore.telemetryFocus,
+      uiStore.telemetryActive && !uiStore.romanStoryActive && this.viewMode === ViewMode.VIEW_3D && earthMode && !this.census.group.visible,
+      gmstDeg, this.cfg.earthRotationOffset, this.camera3d);
 
     if (this.viewMode === ViewMode.VIEW_3D || isSkyView) {
       // Update 3D scene (sky view shares the 3D scene but hides ground objects)
@@ -1813,7 +1831,7 @@ export class App {
         if ((this.liveCssClock += dt) > 1) {
           this.liveCssClock = 0;
           const css = getComputedStyle(document.documentElement).getPropertyValue('--live').trim();
-          if (css) this.deepSpace.setLive(css);
+          if (css) { this.deepSpace.setLive(css); this.telemetry.setColor(css); }
         }
         if (storyOn) {
           // Close to the observatory, bloom gentler: silver would bloom out.
