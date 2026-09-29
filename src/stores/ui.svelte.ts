@@ -155,6 +155,11 @@ class UIStore {
   romanStoryStart = 0;
   /** How far the story has been scrolled, in screens (set by the story's page each frame). */
   romanStoryT = 0;
+  /**
+   * Where the camera is in the story, when that differs from the scroll: with
+   * reduced motion the camera holds one shot per chapter (set by the story's page).
+   */
+  romanStoryCamT: number | null = null;
   /** Which stop of the light path the light has reached (set by the app). */
   romanStoryStop = $state(0);
   /** Open the story, at `t` screens in (set by the app). */
@@ -165,6 +170,15 @@ class UIStore {
   onStoryDrag: ((dx: number, dy: number, held: boolean) => void) | null = null;
   /** Roman's live numbers, while the story is open (set by the app). */
   romanView = $state<RomanView | null>(null);
+  /** Whether the observatory's 3D model has loaded (set by the deep-space layer). */
+  romanModel = $state<'loading' | 'ready' | 'failed'>('loading');
+  /** Try loading the model again after a failure (set by the app). */
+  onRetryRomanModel: (() => void) | null = null;
+  /**
+   * Where the story's words and controls sit on screen, in CSS pixels: names
+   * on the model stay out of them (set by the story's page).
+   */
+  romanStoryAvoid: { x0: number; y0: number; x1: number; y1: number }[] | null = null;
   /** How many catalogued objects currently sit in each licensed Starlink shell. */
   shellCensus = $state<Record<string, number>>({});
   constellationOpen = $state(false);

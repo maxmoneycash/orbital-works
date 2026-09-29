@@ -238,7 +238,8 @@ export class App {
     // Renderer — insert canvas before the Svelte UI overlay
     this.renderer = new THREE.WebGLRenderer();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    // 3x phones draw at 2x: the difference is invisible, the fill cost is not.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.autoClear = false;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -252,7 +253,7 @@ export class App {
 
     // Post-processing (bloom + tone mapping)
     this.postProcessing = new PostProcessing(this.renderer, this.scene3d, this.camera3d);
-    this.postProcessing.setPixelRatio(window.devicePixelRatio);
+    this.postProcessing.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     const aspect = window.innerWidth / window.innerHeight;
     const halfH = MAP_H / 2;
@@ -998,6 +999,7 @@ export class App {
         this.camera.snapAngles(x - earthRot, y);
       }
     };
+    uiStore.onRetryRomanModel = () => this.deepSpace.loadModel();
     uiStore.onStoryDrag = (dx, dy, held) => {
       this.story.dragging = held;
       this.story.yaw -= dx * 0.005;
@@ -1601,7 +1603,7 @@ export class App {
         ? (window.innerHeight * 0.35 + 66) / 2
         : 0;
       // In the story the words sit low: frame the scene above them.
-      this.camera.setViewOffsetY(uiStore.romanStoryActive ? window.innerHeight * 0.13 : sheetOffset);
+      this.camera.setViewOffsetY(uiStore.romanStoryActive ? window.innerHeight * 0.16 : sheetOffset);
     } else {
       // On a wide screen the words sit left: frame the scene right of centre.
       this.camera.setViewOffsetX(uiStore.romanStoryActive ? -window.innerWidth * 0.11 : 0);
@@ -1640,7 +1642,7 @@ export class App {
     this.camera.updateFrame(dt, earthRotRad, isOrreryOrPlanet);
     // The story's camera, over the controller's.
     if (uiStore.romanStoryActive && this.viewMode === ViewMode.VIEW_3D) {
-      this.storyPose = this.story.apply(this.camera3d, uiStore.romanStoryT, dt) ?? this.storyPose;
+      this.storyPose = this.story.apply(this.camera3d, uiStore.romanStoryCamT ?? uiStore.romanStoryT, dt) ?? this.storyPose;
     }
     this.camera3d.updateMatrixWorld();
 

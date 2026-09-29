@@ -279,6 +279,9 @@ export class InputHandler {
 
     // Keyboard
     window.addEventListener('keydown', (e) => {
+      // The Roman story is a page: its keys (Space, Page Down, Home, the
+      // arrows) scroll it, and the tracker's shortcuts wait until it ends.
+      if (uiStore.romanStoryActive) return;
       // Ctrl+K: open command palette, Ctrl+F: open satellite search
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'f')) {
         e.preventDefault();

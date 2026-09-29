@@ -34,6 +34,14 @@ export const CHAPTERS = {
 export type ChapterId = keyof typeof CHAPTERS;
 /** The story's length in screens; scrolling past it hands over to the tracker. */
 export const STORY_LENGTH = 16.4;
+/**
+ * With reduced motion the camera does not fly: it holds one shot per chapter
+ * and cuts between them. The moment of each chapter that frames it whole.
+ */
+export const HOLD: Record<ChapterId, number> = {
+  hero: 0, out: 3.0, arrive: 3.95, unfold: 5.2, sun: 6.9, light: 8.9,
+  image: 10.9, home: 12.9, apart: 14.6, end: 16.0,
+};
 
 const OBLIQUITY = (23.4393 * Math.PI) / 180;
 /** The ecliptic pole in the globe's frame. */
@@ -50,8 +58,6 @@ interface Pose { target: THREE.Vector3; dist: number; dir: THREE.Vector3 }
 
 /** Shots close in, in the model's own metres: target, distance, and the direction the camera sits in. */
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-const FP = V(0.75, 3.39, -0.36);          // the focal plane
-const DISH = V(0, 0.9, 2.5);
 
 export class RomanStory {
   /** Drag offsets on top of the scripted shot, radians; they ease home when let go. */
@@ -72,19 +78,32 @@ export class RomanStory {
     return { target: target.clone(), dist, dir: dir.clone().normalize() };
   }
 
-  /** A shot in the observatory's frame: `target` and `dir` in its metres, `dist` in metres. */
+  /**
+   * A shot in the observatory's frame: `target` and `dir` in its metres,
+   * `dist` in metres. On a portrait screen the whole-observatory shots pull
+   * back a little, so it fits the top of the screen above the words.
+   */
   private local(target: THREE.Vector3, dist: number, dir: THREE.Vector3): Pose {
     const o = this.deep.orbit;
     o.body.getWorldQuaternion(this.q);
+    const fit = this.aspect < 0.75 && dist > 10 ? 1.12 : 1;
     return {
       target: o.toWorld(target),
-      dist: dist * MODEL_SCALE,
+      dist: dist * fit * MODEL_SCALE,
       dir: this.dirLocal.copy(dir).normalize().applyQuaternion(this.q).clone(),
     };
   }
 
+  /**
+   * The focal plane and the dish, measured off the loaded model: the shots
+   * and names that close in on them follow the model if it changes.
+   */
+  private get fp() { return this.deep.orbit.centres.get('focal-plane') ?? V(-1.38, 3.39, -0.83); }
+  private get dish() { return this.deep.orbit.centres.get('dish') ?? V(0, 0.89, 3.74); }
+
   /** The keyframed shots, evaluated for this frame. */
   private keys(): [number, Pose][] {
+    const FP = this.fp;
     const R = this.deep.roman!.draw;
     const rHat = R.clone().normalize();
     const across = new THREE.Vector3().crossVectors(POLE, rHat).normalize();
@@ -209,6 +228,7 @@ export class RomanStory {
       if (at && alpha > 0.02) L.push({ id, text, at, alpha, strong });
     };
     const c = (id: string) => o.centres.get(id);
+    const DISH = this.dish;
     // Arriving: the three things that make it Roman at a glance.
     const arrive = span(t, 3.75, 3.95, 4.15, 4.3);
     add('ap', 'Aperture, under its visor', V(0, 12.3, 0), arrive);

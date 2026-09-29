@@ -75,6 +75,46 @@ typography:
     fontSize: "11px"
     fontWeight: 400
     letterSpacing: "1px"
+  story-title:
+    fontFamily: "Overpass Mono, ui-monospace, monospace"
+    fontSize: "clamp(30px, 4vw, 46px)"
+    fontWeight: 600
+    lineHeight: 1.04
+    letterSpacing: "-0.02em"
+  story-title-phone:
+    fontFamily: "Overpass Mono, ui-monospace, monospace"
+    fontSize: "32px"
+    fontWeight: 600
+    lineHeight: 1.04
+    letterSpacing: "-0.02em"
+  story-title-short:
+    fontFamily: "Overpass Mono, ui-monospace, monospace"
+    fontSize: "26px"
+    fontWeight: 600
+    lineHeight: 1.04
+    letterSpacing: "-0.02em"
+  story-heading:
+    fontFamily: "Overpass Mono, ui-monospace, monospace"
+    fontSize: "clamp(24px, 2.8vw, 34px)"
+    fontWeight: 600
+    lineHeight: 1.08
+    letterSpacing: "-0.015em"
+  story-heading-short:
+    fontFamily: "Overpass Mono, ui-monospace, monospace"
+    fontSize: "21px"
+    fontWeight: 600
+    lineHeight: 1.08
+    letterSpacing: "-0.015em"
+  story-body:
+    fontFamily: "Overpass Mono, ui-monospace, monospace"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.6
+  story-body-short:
+    fontFamily: "Overpass Mono, ui-monospace, monospace"
+    fontSize: "13.5px"
+    fontWeight: 400
+    lineHeight: 1.5
 rounded:
   none: "0px"
   chip: "2px"
@@ -247,7 +287,7 @@ Mostly black and warm off-white, one functional green, one amber reserved for es
 
 ## Layout
 
-**Roman story.** No window and no controls beyond a quiet *Skip to the tracker* top right and a 1px live-green progress rail on the right edge. Each part of the way has one headline (up to 46px/600 for the first, 34px/600 after) and one or two sentences of 15px ink-2 in a 440px column at left, vertically centred (low, over a black scrim, on phones); they fade and drift 14px with scroll. Live figures sit in the sentences in ink, tabular. Step lists (the deployments) use a 1px left rule that turns live green on the current step; the light path shows its current stop in live green with a row of ten 18×2px ticks. On the model, names are 11.5px ink with a soft black shadow and no box, a 5px ink dot at the point and a 1px leader out to the text; the one that matters most is live green. Light and data are streaks with bright heads — warm for sunlight, live green for the Ka-band stream. Inside the telescope the hardware turns to an x-ray behind a sweeping scan line: pale blue (#a9c4ff) Fresnel edges with a faint fill, mirrors and detectors left solid. On the globe, deep-space labels are chips on a 55% scrim with a 1px left rule.
+**Roman story.** No window and no controls beyond a quiet *Skip to the tracker* top right (a 44px target, inside the safe area) and a progress rail on the right edge: one 2px segment per part of the way, filling in live green, the current one brightest. The document itself scrolls while the story plays — the canvas and UI sit fixed on their own compositor layers over an empty track — so momentum, the keyboard, a phone's collapsing toolbar and a tap on the status bar all behave natively, and nothing intercepts the scroll. Each part of the way has one headline (`story-title`, `story-heading`) and one or two sentences of `story-body` ink-2 in a 440px column at left, vertically centred, with the scene framed right of it; they fade and drift 14px with scroll. On a portrait phone the scene is framed in the top half and the words sit at the bottom over a black scrim, clear of the home bar; on a short landscape screen they keep a narrower column at left over a scrim from that side, in the `-short` steps. Where space is short, the deployment list shows only the times of the steps not under way. While the model is on its way the scene says so with a breathing dot; if it fails, it says so and offers *Try again*. A story opened from the tracker adds a history entry, so Back returns to the tracker. Live figures sit in the sentences in ink, tabular. Step lists (the deployments) use a 1px left rule that turns live green on the current step; the light path shows its current stop in live green with a row of ten 18×2px ticks. On the model, names are 11.5px ink (12px on phones) with a soft black shadow and no box, a 5px ink dot at the point and a 1px leader out to the text; the one that matters most is live green. Each name takes the first clear slot of right, left, above and below its point, on screen and out of the words and the skip control, and is not drawn when none is clear. Light and data are streaks with bright heads — warm for sunlight, live green for the Ka-band stream. Inside the telescope the hardware turns to an x-ray behind a sweeping scan line: pale blue (#a9c4ff) Fresnel edges with a faint fill, mirrors and detectors left solid. On the globe, deep-space labels are chips on a 55% scrim with a 1px left rule.
 
 **Phones (max-width 767px).** Edge inset drops to 16px, and the provenance meter and long status line are hidden in favour of short variants. The rail becomes a grid: the forward CTA takes its own full-width opaque row, with the previous arrow and a horizontally scrolling chapter list beneath. Copy spans the width, capped at 50% height, over a black gradient. The light-path stop list collapses to a tick bar, and the inspector becomes a bottom sheet above the rail. On short screens (max-height 940px) and on phones, the event timeline shows only the current step's words.
 
@@ -322,7 +362,7 @@ An 11px ink-2 caption on the caption scrim, 3px 7px padding, positioned by measu
 - **Arrive:** from opacity 0, translateY(14px) and blur(4px). 0.9s for chapter copy and captions, 0.5s for the inspector and parts index. It re-runs on each chapter change.
 - **Trace:** detector outlines fade in 1.4s each, staggered 40ms after a 120ms lead.
 - **Breathe:** the status dot pulses to 0.35 opacity over 2.6s, and the loading square over 1.2s.
-- **Reduced motion:** `prefers-reduced-motion: reduce` removes the arrive, trace and breathe animations and the sky, underline and arrow transitions. In script, camera flights run at zero duration, autorotation is off, and deploy and light-path timings collapse. The console's dock also drops its transitions.
+- **Reduced motion:** `prefers-reduced-motion: reduce` removes the arrive, trace and breathe animations and the sky, underline and arrow transitions. In script, camera flights run at zero duration, autorotation is off, and deploy and light-path timings collapse. The console's dock also drops its transitions. In the Roman story the camera does not fly: it holds one shot per part of the way and cuts between them under a 0.2s fade to black, and the words fade without drifting.
 
 ## Do's and Don'ts
 

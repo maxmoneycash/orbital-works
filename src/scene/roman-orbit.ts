@@ -236,6 +236,13 @@ export class RomanInOrbit {
   private gimbalQ = new THREE.Quaternion();
   private feed = new THREE.Object3D();
   private wfiHousing: THREE.Mesh[] = [];
+  /**
+   * The element wheel and its slots, with their own materials. Solid while
+   * the light crosses them; once the picture builds they turn to x-ray like
+   * the rest, so the detectors behind them can be seen.
+   */
+  private wheel: { mesh: THREE.Mesh; own: THREE.Material }[] = [];
+  private wheelGhost = false;
   private linings: THREE.MeshStandardMaterial[] = [];
   private mats: THREE.MeshStandardMaterial[] = [];
   private exposure: Exposure | null = null;
@@ -324,12 +331,15 @@ export class RomanInOrbit {
     this.light = new LightPath(model);
     for (const [sub, meshes] of model.bySubsystem) this.centres.set(sub, boundsOf(meshes).getCenter(new THREE.Vector3()));
     this.wfiHousing = model.meshes.filter((m) => (partOf(m) ?? '').startsWith('WFI.Body'));
+    this.wheel = model.meshes.filter((m) => (partOf(m) ?? '').startsWith('WFI.Element'))
+      .map((mesh) => ({ mesh, own: mesh.material as THREE.Material }));
 
     // The antenna's gimbal: the dish, feed and struts turn together about the
     // gimbal's centre. Their origins stay on the deploy hinge, so unfolding
     // still swings them out on it, with the gimbal at rest.
     const P = (p: string) => model.byPart.get(p);
     const dish = P('HGA.Dish'), feed = P('HGA.Feed'), elev = P('HGA.GimbalElevation');
+    if (dish) this.centres.set('dish', boundsOf([dish]).getCenter(new THREE.Vector3()));
     if (dish && feed && elev && dish.parent) {
       const comms = dish.parent;
       const g = new THREE.Group();
@@ -484,6 +494,8 @@ export class RomanInOrbit {
     draw: THREE.Vector3; toSun: THREE.Vector3; toEarth: THREE.Vector3;
     camera: THREE.PerspectiveCamera; dt: number; w: number; h: number; showTags: boolean;
     state: OrbitState;
+    /** Screen rectangles the names stay out of (the story's words and controls). */
+    avoid?: { x0: number; y0: number; x1: number; y1: number }[] | null;
   }) {
     const m = this.model;
     const s = o.state;
@@ -555,13 +567,19 @@ export class RomanInOrbit {
       (this.front.material as THREE.SpriteMaterial).opacity = Math.min(1, s.light * 20) * Math.min(1, (1 - s.light) * 20);
     }
     this.paintExposure(s);
+    // The x-ray material is already compiled for every twin: swapping to it costs nothing.
+    const ghost = s.frames > 0.01;
+    if (ghost !== this.wheelGhost) {
+      this.wheelGhost = ghost;
+      for (const w of this.wheel) w.mesh.material = ghost ? this.xrayMat : w.own;
+    }
     m.sky.gain.value = s.frames > 0 ? 1.6 : 0;
     if (this.skyCam && s.frames > 0) {
       const wm = new THREE.Matrix4().multiplyMatrices(this.body.matrixWorld, this.skyCam.local);
       m.sky.vp.value.multiplyMatrices(this.skyCam.P, wm.invert());
     }
 
-    this.placeTags(o.camera, o.w, o.h, o.showTags ? s.labels : []);
+    this.placeTags(o.camera, o.w, o.h, o.showTags ? s.labels : [], o.avoid ?? null);
   }
 
   private paintExposure(s: OrbitState) {
@@ -643,40 +661,67 @@ export class RomanInOrbit {
 
   /**
    * Names on the model: a small point where it is, a hairline out to the
-   * text, pushed apart so none overlap. The story fades them with `alpha`.
+   * text. Each name tries the side of its point with room, then the other
+   * side, then above and below, and takes the first slot that is on screen,
+   * clear of `avoid` and clear of every name already placed. A name with no
+   * clear slot is not drawn. The story fades them with `alpha`.
    */
-  private placeTags(camera: THREE.PerspectiveCamera, w: number, h: number, labels: OrbitLabel[]) {
-    const placed: { x: number; y: number; w: number; h: number }[] = [];
+  private placeTags(camera: THREE.PerspectiveCamera, w: number, h: number, labels: OrbitLabel[],
+    avoid: { x0: number; y0: number; x1: number; y1: number }[] | null) {
+    const M = 10, GAP = 34, th = 18, PX = 8, PY = 5;
+    type Box = { x: number; y: number; w: number; h: number };
+    const placed: Box[] = [];
     const seen = new Set<string>();
+    const clash = (b: Box) =>
+      b.x < M || b.y < M || b.x + b.w > w - M || b.y + b.h > h - M ||
+      placed.some((q) => b.x < q.x + q.w + PX && b.x + b.w + PX > q.x && b.y < q.y + q.h + PY && b.y + b.h + PY > q.y) ||
+      !!avoid?.some((a) => b.x < a.x1 && b.x + b.w > a.x0 && b.y < a.y1 && b.y + b.h > a.y0);
     const rows = labels.map((t) => {
       const p = this.toWorld(t.at, this.tmp).project(camera);
       return { t, x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h, ok: p.z < 1 && Math.abs(p.x) < 1.05 && Math.abs(p.y) < 1.05 };
-    }).sort((a, b) => a.y - b.y);
+    }).sort((a, b) => Number(!!b.t.strong) - Number(!!a.t.strong) || a.y - b.y);
+    const hide = (tag: Tag) => {
+      tag.el.style.display = tag.dot.style.display = tag.line.style.display = 'none';
+      tag.on = false;
+    };
     for (const r of rows) {
       const a = r.t.alpha ?? 1;
-      if (!r.ok || a < 0.02) continue;
+      const dot: Box = { x: r.x - 3, y: r.y - 3, w: 6, h: 6 };
+      if (!r.ok || a < 0.02 || r.x < 4 || r.x > w - 4 || avoid?.some((q) => dot.x < q.x1 && dot.x + 6 > q.x0 && dot.y < q.y1 && dot.y + 6 > q.y0)) continue;
       const tag = this.tag(r.t.id);
       if (tag.text.textContent !== r.t.text) tag.text.textContent = r.t.text;
       tag.el.classList.toggle('strong', !!r.t.strong);
-      const tw = tag.el.offsetWidth || 120, th = 18;
-      const right = r.x < w * 0.72;
-      let x = right ? r.x + 38 : r.x - 38 - tw, y = r.y - 34;
-      x = Math.max(8, Math.min(w - tw - 8, x));
-      for (const q of placed) if (x < q.x + q.w && x + tw > q.x && y < q.y + q.h + 4 && y + th > q.y - 4) y = q.y + q.h + 6;
-      placed.push({ x, y, w: tw, h: th });
+      // Measured while shown: a hidden name has no width.
+      if (!tag.on) { tag.el.style.display = ''; tag.el.style.opacity = '0'; }
+      const tw = tag.el.offsetWidth || 120;
+      const rightFirst = r.x < w * 0.62;
+      const sides: ['right' | 'left' | 'above' | 'below', number, number][] = [
+        ['right', r.x + GAP, r.y - GAP], ['left', r.x - GAP - tw, r.y - GAP],
+        ['above', r.x - tw / 2, r.y - GAP - th], ['below', r.x - tw / 2, r.y + GAP],
+        ['right', r.x + GAP, r.y + GAP / 2], ['left', r.x - GAP - tw, r.y + GAP / 2],
+      ];
+      if (!rightFirst) [sides[0], sides[1]] = [sides[1], sides[0]];
+      let slot: { side: string; box: Box } | null = null;
+      for (const [side, x, y] of sides) {
+        const box = { x, y, w: tw, h: th };
+        if (!clash(box)) { slot = { side, box }; break; }
+      }
+      if (!slot) { if (tag.on) hide(tag); else tag.el.style.display = 'none'; continue; }
+      const { side, box: { x, y } } = slot;
+      placed.push(slot.box);
       tag.el.style.translate = `${x}px ${y}px`;
       tag.el.style.opacity = String(a);
       tag.dot.style.translate = `${r.x - 2.5}px ${r.y - 2.5}px`;
       tag.dot.style.opacity = String(a);
+      const lx = side === 'right' ? x - 4 : side === 'left' ? x + tw + 4 : Math.max(x, Math.min(x + tw, r.x));
+      const ly = side === 'above' ? y + th + 2 : side === 'below' ? y - 2 : y + th / 2;
       tag.line.setAttribute('x1', String(r.x)); tag.line.setAttribute('y1', String(r.y));
-      tag.line.setAttribute('x2', String(right ? x - 4 : x + tw + 4)); tag.line.setAttribute('y2', String(y + th / 2));
+      tag.line.setAttribute('x2', String(lx)); tag.line.setAttribute('y2', String(ly));
       tag.line.style.opacity = String(a * 0.6);
-      if (!tag.on) { tag.el.style.display = ''; tag.dot.style.display = ''; tag.line.style.display = ''; tag.on = true; }
+      if (!tag.on) { tag.dot.style.display = ''; tag.line.style.display = ''; tag.on = true; }
       seen.add(r.t.id);
     }
-    for (const [id, tag] of this.tags) {
-      if (!seen.has(id) && tag.on) { tag.el.style.display = tag.dot.style.display = tag.line.style.display = 'none'; tag.on = false; }
-    }
+    for (const [id, tag] of this.tags) if (!seen.has(id) && tag.on) hide(tag);
   }
 
   private tag(id: string): Tag {

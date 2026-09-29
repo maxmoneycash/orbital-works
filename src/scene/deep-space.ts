@@ -19,6 +19,7 @@ import { geodeticToEci } from '../astro/geodetic';
 import { loadDeepSpace, positionAt, span, l2At, C_KM_S, type DeepSpace, type BodyName } from '../roman/ephem';
 import { STATIONS, MIN_ELEVATION, type Station } from '../roman/sim';
 import { RomanInOrbit, REST, type OrbitState } from './roman-orbit';
+import { uiStore } from '../stores/ui.svelte';
 
 /** Within this many draw units of Roman, the observatory itself is drawn. */
 export const SHOW_MODEL_WITHIN = 6;
@@ -199,7 +200,16 @@ export class DeepSpaceLayer {
 
   async load() {
     this.ds = await loadDeepSpace();
-    this.orbit.load(this.camera).catch((e) => console.warn('[deep-space] Roman model unavailable', e));
+    this.loadModel();
+  }
+
+  /** Load the observatory; the story shows how that is going, and offers a retry. */
+  loadModel() {
+    uiStore.romanModel = 'loading';
+    this.orbit.load(this.camera).then(
+      () => { uiStore.romanModel = 'ready'; },
+      (e) => { console.warn('[deep-space] Roman model unavailable', e); uiStore.romanModel = 'failed'; },
+    );
   }
 
   /** Sample times of a body between two instants. */
@@ -407,6 +417,7 @@ export class DeepSpaceLayer {
       draw, toSun: sun ? toRender(sun.sub(rk)).normalize() : new THREE.Vector3(1, 0, 0),
       toEarth: this.tmp.copy(draw).negate().normalize().clone(),
       camera: this.camera, dt, w, h, showTags: view.modelTags && this.modelShown, state: view.model,
+      avoid: uiStore.romanStoryActive ? uiStore.romanStoryAvoid : null,
     });
     this.pulse.position.copy(head);
     const ph = (this.clock % 2.4) / 2.4;
