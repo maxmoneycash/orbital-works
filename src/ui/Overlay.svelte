@@ -19,6 +19,7 @@
   import DopplerWindow from './DopplerWindow.svelte';
   import AnatomyWindow from './AnatomyWindow.svelte';
   import RomanStory from './roman/RomanStory.svelte';
+  import CensusPanel from './census/CensusPanel.svelte';
   import DesignerWindow from './DesignerWindow.svelte';
   import PhasedArrayWindow from './PhasedArrayWindow.svelte';
   import WaveformWindow from './WaveformWindow.svelte';
@@ -80,6 +81,7 @@
   <SkyReticle />
   <SkyRotator />
   <RomanStory />
+  <CensusPanel />
 </div>
 
 <style>

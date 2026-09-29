@@ -1,4 +1,5 @@
 import type { Satellite, SelectedSatInfo } from '../types';
+import type { CensusPick } from '../scene/census-layer';
 import type { SatellitePass } from '../passes/pass-types';
 import { ViewMode } from '../types';
 import { MOBILE_BREAKPOINT } from '../constants';
@@ -170,6 +171,27 @@ class UIStore {
   onStoryDrag: ((dx: number, dy: number, held: boolean) => void) | null = null;
   /** Roman's live numbers, while the story is open (set by the app). */
   romanView = $state<RomanView | null>(null);
+  /** The orbital census window (desktop); on phones it is the 'census' sheet. */
+  censusOpen = $state(false);
+  /** Whether the census is showing, on either kind of screen. */
+  get censusActive(): boolean { return this.isMobile ? this.activeMobileSheet === 'census' : this.censusOpen; }
+  /** The census snapshot's state (set by the app). */
+  censusState = $state<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+  /** Counts by type (rows) and regime (columns), total, working payloads, snapshot time (set by the app). */
+  censusSummary = $state<{ table: number[][]; total: number; working: number; generatedAt: string } | null>(null);
+  /** Show only this type / this regime (index), or everything. */
+  censusType = $state<number | null>(null);
+  censusRegime = $state<number | null>(null);
+  /** The object tapped or clicked on the globe. */
+  censusPick = $state<CensusPick | null>(null);
+  /** Try loading the census again (set by the app). */
+  onRetryCensus: (() => void) | null = null;
+  /** Open the census on either kind of screen. */
+  openCensus() {
+    if (this.isMobile) this.openMobileSheet('census');
+    else this.censusOpen = true;
+  }
+
   /** Whether the observatory's 3D model has loaded (set by the deep-space layer). */
   romanModel = $state<'loading' | 'ready' | 'failed'>('loading');
   /** Try loading the model again after a failure (set by the app). */

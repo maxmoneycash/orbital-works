@@ -53,6 +53,7 @@ export const ICON_ARRAY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentC
 
 export const ICON_WAVEFORM = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 8h1.8l1.4-5 1.8 10 1.8-8 1.6 6 1.4-3H15"/></svg>';
 
+export const ICON_CENSUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><ellipse cx="8" cy="8" rx="6.6" ry="2.6" transform="rotate(-24 8 8)"/><circle cx="13.4" cy="5.6" r="0.9" fill="currentColor" stroke="none"/><circle cx="3.2" cy="10.1" r="0.9" fill="currentColor" stroke="none"/><circle cx="10.6" cy="11.9" r="0.7" fill="currentColor" stroke="none"/></svg>';
 export const ICON_TELESCOPE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.2 9.6l7.9-4.6 1.6 2.8-7.9 4.6z"/><path d="M10.9 4.5l1.9-1.1 1.6 2.8-1.9 1.1"/><path d="M7.4 10.6L5.6 14.4M7.9 10.3l2.4 4.1"/></svg>';
 export const ICON_SHELLS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><ellipse cx="8" cy="8" rx="6.5" ry="3" opacity=".8"/><ellipse cx="8" cy="8" rx="3" ry="6.5" opacity=".45"/></svg>';
 

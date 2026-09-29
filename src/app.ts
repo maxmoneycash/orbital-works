@@ -11,6 +11,7 @@ import { MoonScene } from './scene/moon-scene';
 import { SunScene } from './scene/sun-scene';
 import { DeepSpaceLayer, TRACKER_VIEW } from './scene/deep-space';
 import { RomanStory } from './scene/roman-story';
+import { CensusLayer } from './scene/census-layer';
 import { SatelliteManager } from './scene/satellite-manager';
 import { OrbitRenderer } from './scene/orbit-renderer';
 import { satColorGl } from './constants';
@@ -73,6 +74,10 @@ export class App {
   private moonScene!: MoonScene;
   private sunScene!: SunScene;
   private deepSpace!: DeepSpaceLayer;
+  private census!: CensusLayer;
+  private censusWasOn = false;
+  private censusDown: { x: number; y: number; t: number } | null = null;
+  private censusHoverAt = 0;
   /** The lock last frame, to convert the camera's angle on entering or leaving Roman's inertial frame. */
   private prevLock = TargetLock.EARTH;
   private liveCssClock = 0;
@@ -518,6 +523,12 @@ export class App {
     this.deepSpace = new DeepSpaceLayer(this.camera3d, overlay, this.renderer);
     this.scene3d.add(this.deepSpace.group);
     this.deepSpace.onPickRoman = () => uiStore.onEnterStory?.(3.4);
+
+    // The orbital census: everything in orbit, around the globe.
+    this.census = new CensusLayer(overlay);
+    this.scene3d.add(this.census.group);
+    uiStore.onRetryCensus = () => this.loadCensus();
+    this.hookCensusInput();
     this.story = new RomanStory(this.deepSpace);
     this.deepSpace.load().then(() => {
       // The moon crossing for the story's words, once the ephemeris is in.
@@ -1605,8 +1616,9 @@ export class App {
       // In the story the words sit low: frame the scene above them.
       this.camera.setViewOffsetY(uiStore.romanStoryActive ? window.innerHeight * 0.16 : sheetOffset);
     } else {
-      // On a wide screen the words sit left: frame the scene right of centre.
-      this.camera.setViewOffsetX(uiStore.romanStoryActive ? -window.innerWidth * 0.11 : 0);
+      // On a wide screen the story's words sit left: frame the scene right of
+      // centre. The census window sits right: frame it left of centre.
+      this.camera.setViewOffsetX(uiStore.romanStoryActive ? -window.innerWidth * 0.11 : this.census.group.visible ? 175 : 0);
     }
 
     // Update sky-view camera origin + ground disc + grid
@@ -1764,6 +1776,20 @@ export class App {
       this.tracker.update(this.satellites, this.selectedSats, epoch, gmstDeg, obs.lat, obs.lon, obs.alt, this.timeSystem.timeMultiplier, rotatorStore.autoTrack ? rotatorStore.trackingLeadSec : 0);
     }
 
+    // The orbital census: it opens and closes on the store, and draws in 3D.
+    const wantCensus = uiStore.censusActive && !uiStore.romanStoryActive;
+    if (wantCensus !== this.censusWasOn) {
+      this.censusWasOn = wantCensus;
+      if (wantCensus) this.enterCensus(); else this.leaveCensus();
+    }
+    const censusOn = wantCensus && this.viewMode === ViewMode.VIEW_3D && earthMode;
+    this.census.group.visible = censusOn && !!this.census.data;
+    if (censusOn) {
+      this.census.setFilter(uiStore.censusType == null ? null : [uiStore.censusType], uiStore.censusRegime == null ? null : [uiStore.censusRegime]);
+      if (uiStore.censusPick == null) this.census.marked = null;
+    }
+    this.census.update(epochToUnix(epoch) * 1000, this.camera3d, window.innerWidth, window.innerHeight);
+
     if (this.viewMode === ViewMode.VIEW_3D || isSkyView) {
       // Update 3D scene (sky view shares the 3D scene but hides ground objects)
       if (!this.orreryCtrl.isOrreryMode && !isSkyView) {
@@ -1777,7 +1803,7 @@ export class App {
       }
 
       // Deep space: out beyond the Moon, so not in sky view or the orrery.
-      const deepOn = !isSkyView && !this.orreryCtrl.isOrreryMode && this.activeLock !== TargetLock.PLANET;
+      const deepOn = !isSkyView && !this.orreryCtrl.isOrreryMode && this.activeLock !== TargetLock.PLANET && !this.census.group.visible;
       this.deepSpace.setVisible(deepOn);
       if (deepOn) {
         const storyOn = uiStore.romanStoryActive;
@@ -1831,8 +1857,8 @@ export class App {
         timeMultiplier: this.timeSystem.timeMultiplier,
       });
 
-      // The story keeps the sky clear for Roman.
-      this.satManager.setVisible((earthMode || isSkyView) && !uiStore.romanStoryActive);
+      // The story keeps the sky clear for Roman; the census draws every object itself.
+      this.satManager.setVisible((earthMode || isSkyView) && !uiStore.romanStoryActive && !this.census.group.visible);
       uiStore.earthTogglesVisible = earthMode && !isSkyView;
       uiStore.satTogglesVisible = earthMode || isSkyView;
       // Hide 2D marker labels in 3D mode
@@ -2184,7 +2210,73 @@ export class App {
     }
   }
 
+  private loadCensus() {
+    if (uiStore.censusState === 'loading') return;
+    uiStore.censusState = 'loading';
+    this.census.load().then(() => {
+      const d = this.census.data!;
+      uiStore.censusSummary = { table: this.census.table(), total: d.count, working: this.census.working, generatedAt: d.generatedAt };
+      uiStore.censusState = 'ready';
+    }, (e) => { console.warn('[census] unavailable', e); uiStore.censusState = 'failed'; });
+  }
+
+  private enterCensus() {
+    if (uiStore.censusState === 'idle' || uiStore.censusState === 'failed') this.loadCensus();
+    if (this.lockedSat) this.exitSatLock();
+    if (this.viewMode === ViewMode.VIEW_SKY) this.exitSkyView();
+    if (this.viewMode === ViewMode.VIEW_2D) { this.viewMode = ViewMode.VIEW_3D; uiStore.viewMode = ViewMode.VIEW_3D; }
+    this.romanFlight = null;
+    this.activeLock = this.prevLock = TargetLock.EARTH;
+    // Pull back until the geostationary belt fits: above the sheet, on a phone.
+    const R = (EARTH_RADIUS_KM + 37000) / DRAW_SCALE;
+    const vf = (this.camera3d.fov * Math.PI) / 180;
+    const w = window.innerWidth, h = window.innerHeight;
+    const usable = uiStore.isMobile ? Math.max(0.4, (h - (h * 0.35 + 66)) / h) : 1;
+    const vHalf = Math.atan(Math.tan(vf / 2) * usable);
+    const hHalf = Math.atan(Math.tan(vf / 2) * (w / h));
+    this.camera.setTargetDistance((R / Math.tan(Math.min(vHalf, hHalf))) * 1.05);
+  }
+
+  private leaveCensus() {
+    uiStore.censusPick = null;
+    uiStore.censusType = null;
+    uiStore.censusRegime = null;
+    this.census.marked = null;
+    this.census.setHover(null);
+    if (this.activeLock === TargetLock.EARTH) this.camera.setTargetDistance(12);
+  }
+
+  /** A tap or click names the dot under it; a mouse over a dot shows its name. */
+  private hookCensusInput() {
+    const el = this.renderer.domElement;
+    const on = () => this.census.group.visible;
+    const pickAt = (e: PointerEvent, reach: number) => {
+      const r = el.getBoundingClientRect();
+      return this.census.pick(e.clientX - r.left, e.clientY - r.top, reach, epochToUnix(timeStore.epoch) * 1000, this.camera3d, r.width, r.height);
+    };
+    el.addEventListener('pointerdown', (e) => { this.censusDown = on() ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; });
+    el.addEventListener('pointerup', (e) => {
+      const d = this.censusDown;
+      this.censusDown = null;
+      if (!on() || !d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8 || performance.now() - d.t > 600) return;
+      const p = pickAt(e, e.pointerType === 'mouse' ? 10 : 22);
+      uiStore.censusPick = p;
+      this.census.marked = p?.index ?? null;
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!on() || e.pointerType !== 'mouse' || e.buttons) { this.census.setHover(null); return; }
+      const now = performance.now();
+      if (now - this.censusHoverAt < 80) return;
+      this.censusHoverAt = now;
+      const p = pickAt(e, 8);
+      this.census.setHover(p);
+      el.style.cursor = p ? 'pointer' : '';
+    });
+    el.addEventListener('pointerleave', () => this.census.setHover(null));
+  }
+
   private detectHover3D() {
+    if (this.census.group.visible) { this.hoveredSat = null; return; }
     this.raycaster.setFromCamera(this.input.mouseNDC, this.camera3d);
     const touchScale = this.input.isTouchActive ? 2.0 : 1.0;
     const earthR = EARTH_RADIUS_KM / DRAW_SCALE;
